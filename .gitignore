@@ -1,0 +1,6 @@
+# Live development database: rebuilt automatically by `node server.js` when missing
+data/db.json
+data/*.tmp
+node_modules/
+.DS_Store
+Thumbs.db

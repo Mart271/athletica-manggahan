@@ -1,0 +1,13 @@
+{
+  "name": "athletica-manggahan",
+  "version": "1.0.0",
+  "description": "Court reservations, deposits, cancellations and athlete shop for Manggahan Complex Sports & Recreation.",
+  "private": true,
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "reset-db": "node server.js --reset-db",
+    "seed": "node server.js --seed-only"
+  },
+  "engines": { "node": ">=18" }
+}

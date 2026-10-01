@@ -1,0 +1,62 @@
+# Athletica Manggahan
+
+Court reservations, deposits, cancellations and the athlete shop for Manggahan Complex Sports & Recreation. *Play Hard. Move Forward.*
+
+## Run it
+
+Needs Node 18 or newer. No packages to install.
+
+```bash
+node server.js
+```
+
+Open http://localhost:8123. Data is read from and written to `data/db.json`.
+
+```bash
+node server.js --reset-db
+```
+
+Rebuilds `data/db.json` with sample bookings dated around today, then starts the server. Use `--seed-only` to rebuild without starting.
+
+Opening `index.html` directly (or adding `?demo` to the URL) runs **demo mode**: the same `core.js` rules run in the browser against localStorage. Demo mode is for previews only, because nothing it enforces is protected from the person using the browser.
+
+## Development accounts
+
+| Role | Username | Password |
+|---|---|---|
+| Player | `athlete.demo` | `Athletica@123` |
+| Front desk | `frontdesk.admin` | `FrontDesk@123` |
+
+These exist for testing only. Remove them, and the demo-account panel on the sign-in page, before any real use.
+
+## Sign-up and password reset
+
+Anyone can create a **player** account from the sign-in page. Front desk accounts can't be created this way. Passwords need at least 8 characters, a letter and a number, can't be a common password and can't contain the username.
+
+"Forgot password?" sends a 6-digit code to the email on the account. The reply is the same whether or not the account exists. Each code expires after 15 minutes, works once, stops working after 5 wrong tries, and is stored hashed. A new request cancels the previous code, and there are at most 3 requests per 15 minutes. A successful reset signs the account out on every device.
+
+**No email service is connected yet.** With `node server.js`, the code is printed in the server's terminal. In demo mode it appears in a labelled "Demo mailbox" on the page. Replace `mailer()` in `server.js` with a real email provider before launch.
+
+## Files
+
+| File | What it holds |
+|---|---|
+| `core.js` | Every business rule: pricing, holds, payments, cancellations, refund policy, stock, notifications, activity log. Shared by the server and demo mode. |
+| `server.js` | HTTP server, JSON API (`POST /api/<action>`), sessions, password hashing, atomic writes to `data/db.json`. |
+| `app.js` | The interface. Renders what the API returns and never decides prices, eligibility or permissions. |
+| `index.html`, `styles.css` | Page shell and styles. |
+| `logo.svg` | The logo mark (vector, brand red `#DF3821`). Also the browser-tab icon. The header uses the same shapes inline, coloured with the site's `--red`. |
+| `data/db.json` | The development database. |
+
+## How the rules are enforced
+
+- Requests are applied one at a time and each writes the whole database atomically, so checking a slot and reserving it can't interleave. Two players racing for the same hour: one gets it, the other is told it's taken.
+- Amounts, deposits, discounts and refunds are computed in `core.js` from `courts`, `products` and `settings`. Amounts sent by the browser are ignored.
+- Players can only see and act on their own reservations; anything else returns "not found". Staff actions return 403 for player accounts.
+- Passwords are stored as salted scrypt hashes. Sessions are opaque tokens in an HttpOnly, SameSite cookie and expire after 8 hours of inactivity.
+- Cancelling never deletes anything: the reservation becomes `CANCELLED`, a `cancellations` record keeps the reason, policy snapshot and refund decision, and both are listed in `activityLogs`.
+- Refunds are manual. `APPROVED` means staff agreed to refund; only after staff confirm the money went back does it become `COMPLETED` and the payment `REFUNDED`.
+
+## Before production
+
+`data/db.json` is a development database. For real use, move the same collections into a proper database with a unique constraint on court, date and hour. Load wallet numbers and QR codes from server configuration, store payment proofs outside the web root, and serve over HTTPS.
