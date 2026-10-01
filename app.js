@@ -71,8 +71,10 @@
   async function detectMode() {
     if (/[?&]demo\b/.test(location.search) || location.protocol === 'file:') return 'demo';
     try {
-      const r = await fetch('api/ping', { credentials: 'same-origin' });
-      if (r.ok) { const j = await r.json(); if (j && j.ok) return 'server'; }
+      // mode.json ships as a static file saying there's no server; server.js answers that path itself.
+      // Asking for a file that always exists keeps static hosts from logging a 404 on every load.
+      const r = await fetch('mode.json', { credentials: 'same-origin', cache: 'no-store' });
+      if (r.ok) { const j = await r.json(); if (j && j.server === true) return 'server'; }
     } catch (e) { /* no server here */ }
     return 'demo';
   }
@@ -700,7 +702,7 @@
     const said = closed ? (c.status === 'MAINTENANCE' ? 'closed for maintenance' : 'unavailable') : open ? plural(open, 'open hour') + ' on ' + fmtDate(S.date) : 'fully booked on ' + fmtDate(S.date);
     return `<button type="button" class="court-card${closed ? ' is-closed' : ''}" data-action="court" data-court="${c.id}" aria-pressed="${sel}"${closed ? ' aria-disabled="true"' : ''} aria-label="${esc(c.name)}, ${peso(c.hourlyRate)} per hour, ${ratingSaid(c)}, ${esc(said)}">
       ${court3D(c, i, n)}<span class="cc-tag" aria-hidden="true">${sel ? '✓ Selected' : closed ? 'Closed' : 'Select'}</span>
-      <span class="cc-body"><span class="cc-name">${esc(c.name)}</span><span class="cc-rate">${peso(c.hourlyRate)} / hour<span class="cc-stars${c.ratingAverage == null ? ' new' : ''}">${ratingText(c)}</span></span>${avail}</span>
+      <span class="cc-body"><span class="cc-name">${esc(c.name)}</span><span class="cc-rate"><span class="cc-price">${peso(c.hourlyRate)} / hour</span><span class="cc-stars${c.ratingAverage == null ? ' new' : ''}">${ratingText(c)}</span></span>${avail}</span>
     </button>`;
   }
   function reviewsHTML(c) {
@@ -962,10 +964,17 @@
     d.err = { [k]: out.error.message };
     return k;
   }
+  // Same rule as the server: cash deposits only while the desk is open and not about to close.
+  function cashDesk() {
+    const s = V.settings, m = nowMins(), open = m >= s.openHour * 60 && m <= s.closeHour * 60 - 10;
+    const d = new Date(Date.now() + 480 * 60000), close = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), s.closeHour) - 480 * 60000;
+    return { open, deadline: Math.min(Date.now() + s.cashPaymentMinutes * 60000, close), note: m < s.openHour * 60 ? `Desk opens at ${fmtHour(s.openHour)}` : `Desk closed until ${fmtHour(s.openHour)}` };
+  }
   function methodTiles(ctx, d, kind) {
-    const tile = id => { const m = METHOD[id], counter = m.kind === 'counter';
-      return `<label class="mtile"><input type="radio" name="method-${ctx}" value="${id}"${d.method === id ? ' checked' : ''}${d.busy ? ' disabled' : ''}>
-        <span class="m-mark" aria-hidden="true">${m.mark}</span><span><strong>${esc(counter && kind === 'order' ? 'Pay at the counter' : m.label)}</strong><small>${esc(counter && kind === 'order' ? 'Cash when you collect' : m.note)}</small></span></label>`; };
+    const desk = cashDesk();
+    const tile = id => { const m = METHOD[id], counter = m.kind === 'counter', shut = counter && kind !== 'order' && !desk.open;
+      return `<label class="mtile${shut ? ' is-off' : ''}"><input type="radio" name="method-${ctx}" value="${id}"${d.method === id && !shut ? ' checked' : ''}${d.busy || shut ? ' disabled' : ''}>
+        <span class="m-mark" aria-hidden="true">${m.mark}</span><span><strong>${esc(counter && kind === 'order' ? 'Pay at the counter' : m.label)}</strong><small>${esc(counter && kind === 'order' ? 'Cash when you collect' : shut ? desk.note + ', pay online for now' : m.note)}</small></span></label>`; };
     return `<fieldset class="methods"${d.err.method ? ` aria-describedby="err-method-${ctx}"` : ''}><legend>Payment method</legend>
       <div class="m-group"><p>Pay online</p><div class="mtiles">${['GCASH', 'MAYA', 'QRPH'].map(tile).join('')}</div></div>
       <div class="m-group"><p>${kind === 'order' ? 'Pay at the counter' : 'Pay at the front desk'}</p><div class="mtiles one">${tile('CASH')}</div></div>
@@ -979,10 +988,11 @@
     const acc = V.settings.paymentAccounts;
     if (m.kind === 'counter') {
       if (kind === 'order') return `${due}<div class="cash-card"><p class="big">Pay ${peso2(amount)} when you collect</p><p>Your order waits at the front desk. Staff mark it paid when you hand over the cash.</p></div>${submit('Place order')}`;
-      const mins = V.settings.cashPaymentMinutes;
-      return `${due}<div class="cash-card"><p class="big">Pay ${peso2(amount)} at the front desk within ${mins} minutes</p>
+      const desk = cashDesk();
+      if (!desk.open) return `${due}<p class="notice err">${esc(desk.note)}, so a cash deposit can't be paid in time. Choose GCash, Maya or QR Ph to keep this slot.</p>`;
+      return `${due}<div class="cash-card"><p class="big">Pay ${peso2(amount)} at the front desk by ${fmtClock(desk.deadline)}</p>
         <p>Your slot will remain pending until the required deposit has been verified by the facility staff.</p>
-        <p>If the deposit isn't paid by about ${fmtClock(Date.now() + mins * 60000)}, the slot is released for other players.</p></div>${submit('Reserve and pay at the desk')}`;
+        <p>If the deposit isn't paid by then, the slot is released for other players.</p></div>${submit('Reserve and pay at the desk')}`;
     }
     let how;
     if (m.kind === 'qr') {
@@ -1164,6 +1174,7 @@
     const dlg = $('#dlg');
     dlg.className = cls || '';
     dlg.innerHTML = html;
+    if (dlg.querySelector('#dlg-title')) dlg.setAttribute('aria-labelledby', 'dlg-title'); else dlg.removeAttribute('aria-labelledby');
     if (!dlg.open) { if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', ''); }
     const f = dlg.querySelector('[data-autofocus]') || dlg.querySelector('[data-action="close"]');
     if (f) f.focus();
@@ -1660,6 +1671,7 @@
     const F = S.signup;
     return `<div class="auth">
       <form id="signupForm" class="sheet auth-form" novalidate aria-labelledby="su-h"><h2 id="su-h">Sign up</h2><div class="sheet-in">
+        ${S.next === 'book' ? '<p class="notice">Sign up to reserve this slot. Your selection is kept.</p>' : S.next === 'cart' || S.next === 'shop' ? '<p class="notice">Sign up to order. Your cart is kept.</p>' : ''}
         ${F.err.form ? `<p class="notice err" id="err-signup-form" tabindex="-1" role="alert">${esc(F.err.form)}</p>` : ''}
         <div class="two-col">${authField('signup', 'firstName', 'First name', 'text', 'given-name')}${authField('signup', 'lastName', 'Last name', 'text', 'family-name')}</div>
         ${authField('signup', 'username', 'Username', 'text', 'username', { hint: '3 to 30 lowercase letters, numbers, dots, dashes or underscores. You sign in with this.', extra: ' autocapitalize="none" spellcheck="false"' })}
@@ -1721,7 +1733,7 @@
     const name = me().firstName;
     S.signup = blankSignup();
     renderChrome();
-    const next = S.next && S.next !== 'admin' ? S.next : 'mine';
+    const next = S.next && !['admin', 'desk'].includes(S.next) ? S.next : 'mine';
     S.next = null;
     go(next);
     toast('Welcome, ' + name + '. Your account is ready.');
@@ -1771,7 +1783,8 @@
     S.login = { username: '', password: '', err: '', busy: false };
     S.loginNotice = '';
     renderChrome();
-    const next = S.next && !(['admin', 'desk'].includes(S.next) && !isAdmin()) ? S.next : isAdmin() ? 'desk' : S.sel.court ? 'book' : 'mine';
+    const wrongRole = isAdmin() ? ['mine', 'checkout', 'profile'] : ['admin', 'desk'];
+    const next = S.next && !wrongRole.includes(S.next) ? S.next : isAdmin() ? 'desk' : S.sel.court ? 'book' : 'mine';
     S.next = null;
     go(next);
     toast('Signed in as ' + me().firstName + ' ' + me().lastName + '.');
@@ -1977,11 +1990,13 @@
   function renderAdmin() {
     if (!isAdmin()) return deniedHTML(me() ? 'The front desk is for staff accounts. Player accounts can’t open it.' : 'Sign in with a front desk account to open the front desk.');
     const n = deskCounts();
-    const bar = `<div class="atabs" role="group" aria-label="Front desk sections">${TABS.map(([id, l]) => `<button type="button" class="atab" data-action="admin-tab" data-tab="${id}" aria-pressed="${S.adminTab === id}">${l}${n[id] ? `<b>${n[id]}<span class="sr-only"> need attention</span></b>` : ''}</button>`).join('')}</div>`;
+    const bar = `<div class="xs xs-tabs"><div class="atabs" role="group" aria-label="Front desk sections">${TABS.map(([id, l]) => `<button type="button" class="atab" data-action="admin-tab" data-tab="${id}" aria-pressed="${S.adminTab === id}">${l}${n[id] ? `<b>${n[id]}<span class="sr-only"> need attention</span></b>` : ''}</button>`).join('')}</div></div>`;
     const body = ({ schedule: scheduleTab, payments: paymentsTab, cancellations: cancellationsTab, orders: ordersTab, inventory: inventoryTab, courts: courtsTab,
       customers: customersTab, reports: reportsTab, activity: activityTab, settings: settingsTab }[S.adminTab] || scheduleTab)();
+    const tab = TABS.find(t => t[0] === S.adminTab) || TABS[0];
+    const head = /<h2[\s>]/.test(body) ? '' : `<h2 class="sr-only">${esc(tab[1])}</h2>`;
     return `<div class="page-head"><p class="hud"><span class="tick"></span>Staff console · ${esc(me().firstName + ' ' + me().lastName)}</p><h1 class="page-title" tabindex="-1">Front desk</h1>
-      <p>Verify payments, check players in, review cancellations and refunds, and run the shop, courts and settings.</p></div>${bar}${body}`;
+      <p>Verify payments, check players in, review cancellations and refunds, and run the shop, courts and settings.</p></div>${bar}${head}${body}`;
   }
 
   /* Schedule */
@@ -2009,7 +2024,7 @@
         <td><div class="cell-badges">${resBadge(r)}${payBadge(r.paymentStatus)}</div></td>
         <td><div class="row-actions">${acts.join('')}</div></td></tr>`;
     }).join('');
-    return `<div class="tbl"><table><thead><tr><th scope="col">Time</th><th scope="col">Venue</th><th scope="col">Booked by</th><th scope="col">Player type</th><th scope="col">Court fee</th><th scope="col">Status</th><th scope="col">Action</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    return `<div class="xs"><div class="tbl"><table><thead><tr><th scope="col">Time</th><th scope="col">Venue</th><th scope="col">Booked by</th><th scope="col">Player type</th><th scope="col">Court fee</th><th scope="col">Status</th><th scope="col">Action</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
   }
   function scheduleTab() {
     const d = S.adminDate, s = V.settings;
@@ -2027,11 +2042,11 @@
         <div class="stat"><strong data-count="${hours}">${hours}</strong><span>of ${capacity} venue-hours booked</span></div>
         <div class="stat"><strong data-count="${util}" data-suf="%">${util}%</strong><span>Utilization</span></div>
         <div class="stat"><strong data-count="${revenue}" data-pre="₱">${peso(revenue)}</strong><span>Court revenue booked</span></div></div>
-      <div class="admin">
-        <section aria-labelledby="util-h"><h2 id="util-h">Venue usage</h2><ul class="util">${usage}</ul></section>
+      <div class="admin admin-sched">
         <section aria-labelledby="sched-h"><div class="sched-head"><h2 id="sched-h">Schedule for ${esc(fmtDate(d))}</h2>
           <div class="search"><label class="sr-only" for="q">Find a reservation by code, name, or number</label><input id="q" type="search" placeholder="Code, name, or mobile" value="${esc(S.q)}" autocomplete="off"></div></div>
           <div id="sched">${scheduleHTML()}</div></section>
+        <section aria-labelledby="util-h"><h2 id="util-h">Venue usage</h2><ul class="util util-grid">${usage}</ul></section>
       </div>`;
   }
 
@@ -2096,7 +2111,7 @@
         <td>${esc(fmtStamp(c.cancelledAt))}<br><span class="muted">by ${c.cancelledBy === 'ADMIN' ? 'front desk' : 'player'}</span></td>
         <td>${btn('refund-open', c.refundStatus === 'PENDING_REVIEW' ? 'Review' : c.refundStatus === 'APPROVED' ? 'Mark sent' : 'Open', c.refundStatus === 'PENDING_REVIEW' || c.refundStatus === 'APPROVED' ? 'btn-primary' : 'btn-ghost', { id: c.id })}</td></tr>`;
     }).join('');
-    return seg + `<div class="tbl"><table class="cx-table"><thead><tr><th scope="col">Reservation</th><th scope="col">User</th><th scope="col">Reason</th><th scope="col">Paid</th><th scope="col">Refund</th><th scope="col">Status</th><th scope="col">Cancelled</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    return seg + `<div class="xs"><div class="tbl"><table class="cx-table"><thead><tr><th scope="col">Reservation</th><th scope="col">User</th><th scope="col">Reason</th><th scope="col">Paid</th><th scope="col">Refund</th><th scope="col">Status</th><th scope="col">Cancelled</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
   }
   function showRefund(id) {
     const c = IX.can[id];
@@ -2167,7 +2182,7 @@
         <div class="stat"><strong>${V.products.length}</strong><span>Products</span></div>
         <div class="stat"><strong>${low}</strong><span>Low stock</span></div>
         <div class="stat"><strong>${out}</strong><span>Out of stock</span></div></div>
-      <div class="tbl"><table class="inv"><thead><tr><th scope="col">Product</th><th scope="col">Category</th><th scope="col">Price</th><th scope="col">Stock</th><th scope="col">Status</th><th scope="col">Shop</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      <div class="xs"><div class="tbl"><table class="inv"><thead><tr><th scope="col">Product</th><th scope="col">Category</th><th scope="col">Price</th><th scope="col">Stock</th><th scope="col">Status</th><th scope="col">Shop</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
   }
 
   /* Courts */
@@ -2185,7 +2200,7 @@
         <td>${n ? `${plural(n, 'upcoming booking')}${courtOpen(c) ? '' : '<br><span class="stock low">Still on the schedule</span>'}` : '<span class="muted">None</span>'}</td></tr>`;
     }).join('');
     return `<p class="hint lead-hint">Rates and deposits apply to new reservations. Setting a court to maintenance stops new bookings but keeps existing ones, so cancel those from the schedule if the court can’t be used.</p>
-      <div class="tbl"><table class="courts"><thead><tr><th scope="col">Court</th><th scope="col" colspan="4">Status, rate and deposit</th><th scope="col">Upcoming</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      <div class="xs"><div class="tbl"><table class="courts"><thead><tr><th scope="col">Court</th><th scope="col" colspan="4">Status, rate and deposit</th><th scope="col">Upcoming</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
   }
 
   /* Customers */
@@ -2195,7 +2210,7 @@
     const rows = list.map(c => `<tr><td><strong>${esc(c.name)}</strong><span class="tag">${c.type === 'ACCOUNT' ? 'Account' : 'Walk-in'}</span>${c.username ? `<br><span class="muted">${esc(c.username)}</span>` : ''}</td>
       <td>${esc(c.email || '—')}<br><span class="muted">${esc(c.phone || '')}</span></td><td>${c.reservations}</td><td>${c.cancellations}</td><td>${peso(c.paid)}</td><td>${c.lastVisit ? esc(fmtDate(c.lastVisit)) : '—'}</td></tr>`).join('');
     return `<div class="sched-head"><h2 class="sub-h first">${plural(list.length, 'customer')}</h2><div class="search"><label class="sr-only" for="custQ">Search customers</label><input id="custQ" type="search" placeholder="Name, username, email or mobile" value="${esc(S.custQ)}" autocomplete="off"></div></div>
-      ${list.length ? `<div class="tbl"><table><thead><tr><th scope="col">Customer</th><th scope="col">Contact</th><th scope="col">Reservations</th><th scope="col">Cancelled</th><th scope="col">Deposits paid</th><th scope="col">Last visit</th></tr></thead><tbody>${rows}</tbody></table></div>`
+      ${list.length ? `<div class="xs"><div class="tbl"><table><thead><tr><th scope="col">Customer</th><th scope="col">Contact</th><th scope="col">Reservations</th><th scope="col">Cancelled</th><th scope="col">Deposits paid</th><th scope="col">Last visit</th></tr></thead><tbody>${rows}</tbody></table></div></div>`
         : `<div class="empty"><p>No customer matches “${esc(S.custQ.trim())}”.</p></div>`}`;
   }
 
@@ -2246,7 +2261,7 @@
     }).join('');
     return `<div class="sched-head"><h2 class="sub-h first">${plural(list.length, 'event')}</h2>
         <label class="sortsel"><span>Action</span><select id="logFilter"><option value="">All actions</option>${actions.map(a => `<option value="${a}"${S.logFilter === a ? ' selected' : ''}>${esc(ACTION_LABEL[a] || a)}</option>`).join('')}</select></label></div>
-      ${list.length ? `<div class="tbl"><table class="logs"><thead><tr><th scope="col">When</th><th scope="col">Who</th><th scope="col">Action</th><th scope="col">Target</th><th scope="col">Details</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<div class="empty"><p>No events for this filter.</p></div>'}`;
+      ${list.length ? `<div class="xs"><div class="tbl"><table class="logs"><thead><tr><th scope="col">When</th><th scope="col">Who</th><th scope="col">Action</th><th scope="col">Target</th><th scope="col">Details</th></tr></thead><tbody>${rows}</tbody></table></div></div>` : '<div class="empty"><p>No events for this filter.</p></div>'}`;
   }
 
   /* Settings */
@@ -2336,6 +2351,17 @@
       vt.finished.then(done, done);
     } catch (e) { delete root.dataset.vt; update(); }
   }
+  // Sideways scrollers (tables, the front desk tab strip) fade the edge that has more behind it,
+  // so a cut-off column or tab reads as "scroll", not "missing".
+  function cueScroll(el) {
+    const w = el.parentElement;
+    if (!w || !w.classList.contains('xs')) return;
+    const max = el.scrollWidth - el.clientWidth;
+    w.classList.toggle('more-l', max > 1 && el.scrollLeft > 4);
+    w.classList.toggle('more-r', max > 1 && el.scrollLeft < max - 4);
+  }
+  function cueScrollers(root) { (root || document).querySelectorAll('.xs > .tbl, .xs > .atabs').forEach(cueScroll); }
+  document.addEventListener('scroll', e => { if (e.target instanceof Element && e.target.parentElement && e.target.parentElement.classList.contains('xs')) cueScroll(e.target); }, { capture: true, passive: true });
   function runWipe() { const w = $('.wipe'); w.classList.remove('run'); void w.offsetWidth; w.classList.add('run'); }
   $('.wipe').addEventListener('animationend', e => e.currentTarget.classList.remove('run'));
   function setHeader() {
@@ -2367,13 +2393,17 @@
     if (!V) return;
     if (S.view === 'book') saveSelection();
     if (S.view !== 'cart') S.lastOrder = null;
-    const app = $('#app');
-    const sc = app.dataset.view === S.view ? app.querySelector('.scroll-x') : null, left = sc ? sc.scrollLeft : 0;
+    const app = $('#app'), screen = S.view + '/' + (S.view === 'admin' ? S.adminTab : '');
+    // Re-rendering the same screen (after a check-in, say) keeps each sideways scroller where it was.
+    const lefts = app.dataset.screen === screen ? [...app.querySelectorAll('.scroll-x, .tbl')].map(el => el.scrollLeft) : [];
     const html = (VIEWS[S.view] || renderHome)();
     app.innerHTML = S.view === 'home' ? html : '<div class="wrap page">' + html + '</div>';
     app.dataset.view = S.view;
-    const sc2 = app.querySelector('.scroll-x');
-    if (sc2 && left) sc2.scrollLeft = left;
+    app.dataset.screen = screen;
+    app.querySelectorAll('.scroll-x, .tbl').forEach((el, i) => { if (lefts[i]) el.scrollLeft = lefts[i]; });
+    const tab = app.querySelector('.atabs [aria-pressed="true"]');
+    if (tab) { const strip = tab.parentElement; strip.scrollLeft = tab.offsetLeft - (strip.clientWidth - tab.offsetWidth) / 2; }
+    cueScrollers(app);
     if (S.focusKey) { const el = app.querySelector('[data-key="' + S.focusKey + '"]'); if (el && !el.disabled) el.focus({ preventScroll: true }); S.focusKey = null; }
     if (S.focusSel) {
       const el = app.querySelector(S.focusSel);
@@ -2392,8 +2422,18 @@
     const title = S.view === 'book' && isAdmin() ? 'Court availability' : S.view === 'desk' && !isAdmin() ? 'Not available' : TITLES[S.view];
     document.title = (title ? title + ' · ' : '') + 'Athletica Manggahan';
   }
+  // Pages that need an account send guests to sign in first, and sign-in brings them back.
+  const SIGN_IN_FOR = { mine: 'Sign in to see your reservations.', profile: 'Sign in to see your profile.',
+    admin: 'Sign in with a front desk account to open the front desk.', desk: 'Sign in with a front desk account to open the floor view.' };
+  function gate(view) {
+    if (me() || !SIGN_IN_FOR[view]) return view;
+    S.next = view;
+    S.loginNotice = SIGN_IN_FOR[view];
+    return 'login';
+  }
   function go(view, fromHistory) {
     if (view === 'checkout' && !S.co) view = isPlayer() ? 'mine' : 'home';
+    view = gate(view);
     closeDlg(); closePanels(); setMenu(false);
     const vt = !!document.startViewTransition && !reduceMotion();
     transition(() => {
@@ -2580,7 +2620,7 @@
   });
   document.addEventListener('input', e => {
     const el = e.target;
-    if (el.id === 'q') { S.q = el.value; const box = $('#sched'); if (box) box.innerHTML = scheduleHTML(); return; }
+    if (el.id === 'q') { S.q = el.value; const box = $('#sched'); if (box) { box.innerHTML = scheduleHTML(); cueScrollers(box); } return; }
     if (el.id === 'shopQ') { S.shopQ = el.value; const g = $('#pgrid'); if (g) g.innerHTML = gridHTML(); return; }
     if (el.id === 'custQ') { S.custQ = el.value; S.focusSel = '#custQ'; render(); return; }
     if (el.id === 'lg-user') { S.login.username = el.value; return; }
@@ -2692,7 +2732,7 @@
     const card = e.target.closest && e.target.closest('.court-card');
     if (card && !card.contains(e.relatedTarget)) { card.style.removeProperty('--px'); card.style.removeProperty('--py'); }
   });
-  window.addEventListener('resize', () => { if (menuOpen() && !isPhoneNav()) setMenu(false); setHeader(); moveInd(); if (V && S.view === 'home') scUpdate(); });
+  window.addEventListener('resize', () => { if (menuOpen() && !isPhoneNav()) setMenu(false); setHeader(); moveInd(); cueScrollers(); if (V && S.view === 'home') scUpdate(); });
 
   /* ---------- Timers ---------- */
   let lastAnnounce = '', expiring = false;
@@ -2815,6 +2855,7 @@
       const want = location.hash.slice(1);
       if (VIEWS[want]) S.view = want;
       else if (!want && me()) S.view = isAdmin() ? 'desk' : 'mine';
+      S.view = gate(S.view);
       if (S.view === 'checkout' && !S.co) S.view = isPlayer() ? 'mine' : 'home';
       if (S.view === 'book') ensureOpenDate();
       renderChrome();

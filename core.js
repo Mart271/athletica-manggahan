@@ -341,6 +341,12 @@
   function courtLabel(db, courtId) { const c = db.courts.find(x => x.id === courtId); return c ? sportOf(db, c).name + ' ' + c.name : courtId; }
   function fmtDay(date) { return new Date(date + 'T00:00:00Z').toLocaleDateString('en-PH', { timeZone: 'UTC', month: 'long', day: 'numeric' }); }
   function fmtHour(h) { return (h % 12 === 0 ? 12 : h % 12) + (h < 12 ? ' AM' : ' PM'); }
+  // Cash deposits need the desk open: no cash while it's closed or about to close, and never a deadline after closing.
+  function cashWindow(db, t) {
+    const { date, hour } = local(t), s = db.settings, close = slotMs(date, s.closeHour);
+    const open = hour >= s.openHour && hour < s.closeHour && close - t >= 10 * 60000;
+    return { open, deadline: Math.min(t + s.cashPaymentMinutes * 60000, close) };
+  }
   const displayName = u => (u.firstName + ' ' + u.lastName).trim();
   const publicUser = u => ({ id: u.id, username: u.username, email: u.email, firstName: u.firstName, lastName: u.lastName, phone: u.phone, role: u.role, status: u.status, createdAt: u.createdAt });
 
@@ -414,9 +420,11 @@
     };
     db.cancellations.push(can);
     const pay = r.paymentId && db.payments.find(p => p.id === r.paymentId);
-    if (pay && pay.status === 'PENDING') { pay.status = 'FAILED'; pay.note = 'Reservation cancelled before the cash deposit was paid.'; pay.updatedAt = now; }
+    const unpaidCash = !!(pay && pay.status === 'PENDING');
+    if (unpaidCash) { pay.status = 'FAILED'; pay.note = 'Reservation cancelled before the cash deposit was paid.'; pay.updatedAt = now; }
     r.status = 'CANCELLED'; r.cancellationId = can.id; r.holdExpiresAt = null; r.paymentDueAt = null; r.updatedAt = now;
-    if (pay) r.paymentStatus = pay.status;
+    // Nothing was paid, so the booking reads "Unpaid", not "Failed"; the payment record keeps the detail.
+    if (pay) r.paymentStatus = unpaidCash ? 'UNPAID' : pay.status;
     const when = `${courtLabel(db, r.courtId)} reservation on ${fmtDay(r.date)}, ${fmtHour(hourOf(r.startTime))} to ${fmtHour(hourOf(r.endTime))}`;
     if (r.userId) notify(db, t, r.userId, 'RESERVATION_CANCELLED', 'Booking cancelled',
       `Your ${when} has been cancelled${byAdmin ? ' by the front desk' : ''}. Refund: ${refundPhrase(can)}.`, r.id);
@@ -692,12 +700,14 @@
       const short = stockShort(db, r.addonItems);
       if (short) fail(409, 'stock', short + ' Go back to review and change your add-ons.');
       const method = String(p.method || '');
+      const cash = cashWindow(db, t);
+      if (method === 'CASH' && !cash.open) fail(409, 'desk_closed', `The front desk is closed (open ${fmtHour(db.settings.openHour)} to ${fmtHour(db.settings.closeHour)}), so a cash deposit can't be paid in time. Pay online now, or choose cash while the desk is open.`);
       const prev = r.paymentId && db.payments.find(x => x.id === r.paymentId);
       const pay = savePayment(ctx, { reservationId: r.id }, method, p, { amount: r.depositRequired + r.addonTotal, depositAmount: r.depositRequired, addonAmount: r.addonTotal });
       if (prev && prev.status === 'PENDING') { prev.status = 'FAILED'; prev.note = 'Replaced by an online payment.'; prev.updatedAt = now; }
       r.paymentId = pay.id; r.paymentStatus = pay.status; r.updatedAt = now;
       if (method === 'CASH') {
-        r.paymentDueAt = r.holdExpiresAt = iso(t + db.settings.cashPaymentMinutes * 60000);
+        r.paymentDueAt = r.holdExpiresAt = iso(cash.deadline);
       } else {
         r.status = 'PAYMENT_VERIFICATION'; r.holdExpiresAt = null; r.paymentDueAt = null;
       }

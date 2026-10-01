@@ -15,10 +15,10 @@ const ROOT = __dirname;
 const DB_FILE = path.join(ROOT, 'data', 'db.json');
 const PORT = Number(process.env.PORT) || 8123;
 const SESSION_HOURS = 8;
-const STATIC = { '/': 'index.html', '/index.html': 'index.html', '/styles.css': 'styles.css', '/app.js': 'app.js', '/core.js': 'core.js', '/logo.svg': 'logo.svg' };
+const STATIC = { '/': 'index.html', '/index.html': 'index.html', '/styles.css': 'styles.css', '/app.js': 'app.js', '/core.js': 'core.js', '/logo.svg': 'logo.svg', '/fonts/archivo.woff2': 'fonts/archivo.woff2' };
 // Product images: plain file names only, so a request can't reach outside images/products/.
 const PRODUCT_IMG = /^\/images\/products\/[a-z0-9-]+\.svg$/;
-const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml' };
+const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml', '.woff2': 'font/woff2' };
 
 /* ---------- Passwords: scrypt with a per-user salt ---------- */
 const hasher = {
@@ -138,6 +138,8 @@ const server = http.createServer(async (req, res) => {
       const { token: newToken, status, devMail, ...body } = out;
       return sendJson(res, out.ok ? 200 : status || 400, Object.assign(body, { mode: 'server' }), newToken);
     }
+    // The static copy of mode.json says "no server"; answering it here switches the page to the API.
+    if (url.pathname === '/mode.json') return sendJson(res, 200, { server: true });
     const file = STATIC[url.pathname] || (PRODUCT_IMG.test(url.pathname) && fs.existsSync(path.join(ROOT, url.pathname)) ? url.pathname.slice(1) : null);
     if (!file || req.method !== 'GET') return send(res, 404, 'Not found', { 'Content-Type': 'text/plain; charset=utf-8' });
     const body = fs.readFileSync(path.join(ROOT, file));

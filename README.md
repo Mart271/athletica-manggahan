@@ -18,7 +18,7 @@ node server.js --reset-db
 
 Rebuilds `data/db.json` with sample bookings dated around today, then starts the server. Use `--seed-only` to rebuild without starting.
 
-Opening `index.html` directly (or adding `?demo` to the URL) runs **demo mode**: the same `core.js` rules run in the browser against localStorage. Demo mode is for previews only, because nothing it enforces is protected from the person using the browser.
+Opening `index.html` directly, adding `?demo` to the URL, or hosting the files on a static host (like Vercel) runs **demo mode**. The page asks for `mode.json`: the static copy says there's no server, while `server.js` answers that path itself and switches the page to the API. In demo mode the same `core.js` rules run in the browser against localStorage. Demo mode is for previews only, because nothing it enforces is protected from the person using the browser.
 
 ## Development accounts
 
@@ -45,6 +45,8 @@ Anyone can create a **player** account from the sign-in page. Front desk account
 | `server.js` | HTTP server, JSON API (`POST /api/<action>`), sessions, password hashing, atomic writes to `data/db.json`. |
 | `app.js` | The interface. Renders what the API returns and never decides prices, eligibility or permissions. |
 | `index.html`, `styles.css` | Page shell and styles. |
+| `fonts/archivo.woff2` | Archivo, the site's typeface (SIL Open Font License). Loaded by `styles.css` and preloaded by `index.html`. |
+| `mode.json` | Tells the page there's no server, so static hosts run demo mode. `server.js` answers this path itself. |
 | `images/products/` | One illustration per shop product (SVG). Each product's `image` field in the database points here; older databases get it filled in on start. |
 | `logo.svg` | The logo mark (vector, brand red `#DF3821`). Also the browser-tab icon. The header uses the same shapes inline, coloured with the site's `--red`. |
 | `data/db.json` | The development database. |
