@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" role="img" aria-label="Trail mix">
+<defs><pattern id="g" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 0H0V20" fill="none" stroke="#000" stroke-opacity=".07" stroke-width="1"/></pattern></defs>
+<rect width="400" height="300" fill="#F7D774"/><rect width="400" height="300" fill="url(#g)"/>
+<ellipse cx="200" cy="258" rx="78" ry="13" fill="#000" opacity=".17"/>
+
+<path d="M136 72 H264 L276 250 H124 Z" fill="#B98A55" stroke="#141412" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M134 94 H266" stroke="#8E6537" stroke-width="4" stroke-dasharray="8 6"/>
+<path d="M136 72 l6 -8 6 8 6 -8 6 8 6 -8 6 8 6 -8 6 8 6 -8 6 8 6 -8 6 8 6 -8 6 8 6 -8 6 8 6 -8 6 8 6 -8 6 8 6 -8 6 8" fill="none" stroke="#141412" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>
+<rect x="146" y="104" width="108" height="30" fill="#141412"/>
+<text x="200" y="125" font-family="Arial Black, Arial, Helvetica, sans-serif" font-weight="900" font-size="15" letter-spacing="2" text-anchor="middle" fill="#D8FF00">TRAIL MIX</text>
+<rect x="156" y="146" width="88" height="86" rx="10" fill="#F6EAD2" stroke="#141412" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+<g stroke="#141412" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">
+<ellipse cx="178" cy="166" rx="12" ry="7" fill="#9A6431" transform="rotate(-25 178 166)"/>
+<ellipse cx="214" cy="172" rx="12" ry="7" fill="#9A6431" transform="rotate(30 214 172)"/>
+<path d="M226 196 C236 186 244 196 236 206 C232 212 224 210 226 202" fill="#E9C98B"/>
+<path d="M170 196 C180 186 190 196 182 206 C178 212 170 210 172 202" fill="#E9C98B"/>
+<ellipse cx="200" cy="214" rx="12" ry="7" fill="#9A6431"/>
+<circle cx="198" cy="190" r="6" fill="#4A2338"/><circle cx="234" cy="158" r="5" fill="#4A2338"/><circle cx="166" cy="222" r="5" fill="#4A2338"/><circle cx="220" cy="222" r="5" fill="#4A2338"/>
+</g>
+</svg>

@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" role="img" aria-label="Feather shuttlecocks">
+<defs><pattern id="g" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 0H0V20" fill="none" stroke="#000" stroke-opacity=".07" stroke-width="1"/></pattern></defs>
+<rect width="400" height="300" fill="#CFE0F5"/><rect width="400" height="300" fill="url(#g)"/>
+<ellipse cx="200" cy="258" rx="130" ry="13" fill="#000" opacity=".17"/>
+
+<rect x="232" y="40" width="64" height="212" rx="10" fill="#fff" stroke="#141412" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"/>
+<rect x="232" y="70" width="64" height="120" fill="#FF2D00"/>
+<rect x="244" y="82" width="40" height="96" rx="4" fill="#fff" opacity=".9"/>
+<g stroke="#9FA6AD" stroke-width="3" fill="none"><path d="M250 92 H278 M248 108 H280 M250 124 H278 M248 140 H280 M250 156 H278 M248 172 H280"/></g>
+<text x="264" y="222" font-family="Arial Black, Arial, Helvetica, sans-serif" font-weight="900" font-size="20" letter-spacing="0" text-anchor="middle" fill="#141412">12</text>
+<rect x="232" y="40" width="64" height="212" rx="10" fill="none" stroke="#141412" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"/>
+<rect x="232" y="40" width="64" height="20" rx="8" fill="#141412"/>
+<g transform="rotate(-18 190 190)">
+<path d="M150 168 L228 138 L248 192 L170 218 Z" fill="#FAFAF7" stroke="#141412" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M166 160 L178 212 M184 154 L196 206 M202 148 L214 200 M220 142 L232 194" stroke="#C9CDD2" stroke-width="3"/>
+<path d="M232 196 L250 190 L244 206 Q232 214 222 206 Z" fill="#C49A6C"/>
+<path d="M150 168 L170 218" stroke="#FF2D00" stroke-width="8"/>
+<path d="M138 172 Q122 192 142 214 Q150 220 160 218 L150 168 Z" fill="#E9DDC7" stroke="#141412" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M150 168 L228 138 L248 192 L170 218 Z" fill="none" stroke="#141412" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"/>
+</g>
+</svg>

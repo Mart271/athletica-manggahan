@@ -45,8 +45,15 @@ Anyone can create a **player** account from the sign-in page. Front desk account
 | `server.js` | HTTP server, JSON API (`POST /api/<action>`), sessions, password hashing, atomic writes to `data/db.json`. |
 | `app.js` | The interface. Renders what the API returns and never decides prices, eligibility or permissions. |
 | `index.html`, `styles.css` | Page shell and styles. |
+| `images/products/` | One illustration per shop product (SVG). Each product's `image` field in the database points here; older databases get it filled in on start. |
 | `logo.svg` | The logo mark (vector, brand red `#DF3821`). Also the browser-tab icon. The header uses the same shapes inline, coloured with the site's `--red`. |
 | `data/db.json` | The development database. |
+
+## Booking flow
+
+Book → choose a sport and date → choose a court from the 3D court cards (each shows its price and open hours for that day; closed courts can't be picked) → the court's details and hours appear → pick up to 3 back-to-back hours → sign in if needed (the selection is kept) → review → pay the deposit → staff verify → confirmed. The chosen sport, date, court and hours survive a page reload and the browser's back and forward buttons. Front desk accounts see every court's hours in one grid instead of the court cards.
+
+The navigation sits in the top bar at every width; on phones it folds into a Menu button.
 
 ## How the rules are enforced
 

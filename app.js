@@ -30,7 +30,7 @@
   const msUntil = ts => (ts ? Date.parse(ts) - Date.now() : 0);
   const isPast = (date, h) => { const f = fac(); return date < f.date || (date === f.date && h <= f.hour); };
   const reduceMotion = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-  const isRail = () => !!(window.matchMedia && window.matchMedia('(min-width: 1200px)').matches);
+  const isPhoneNav = () => !!(window.matchMedia && window.matchMedia('(max-width: 759px)').matches);
   const mq = window.matchMedia ? window.matchMedia('(max-width: 720px)') : null;
   const isNarrow = () => !!(mq && mq.matches);
   const normPhone = v => { let x = String(v || '').replace(/[\s\-().]/g, ''); if (/^\+?63\d{10}$/.test(x)) x = '0' + x.replace(/^\+?63/, ''); return x; };
@@ -179,7 +179,9 @@
     bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l2 3H4z"/><path d="M10 21h4"/>',
     user: '<rect x="8" y="3" width="8" height="8"/><path d="M4 21v-4a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v4"/>',
     opts: '<path d="M3 7h11M19 7h2M3 17h3M11 17h10"/><rect x="14" y="4.5" width="5" height="5"/><rect x="6" y="14.5" width="5" height="5"/>',
-    signin: '<path d="M14 4h6v16h-6M3 12h12M11 8l4 4-4 4"/>'
+    signin: '<path d="M14 4h6v16h-6M3 12h12M11 8l4 4-4 4"/>',
+    menu: '<path d="M3 6h18M3 12h18M3 18h18"/>',
+    close: '<path d="M5 5l14 14M19 5L5 19"/>'
   };
   const icon = k => `<svg class="ni" viewBox="0 0 24 24" aria-hidden="true">${ICON[k]}</svg>`;
 
@@ -190,17 +192,15 @@
     return [['home', 'Home'], ['book', 'Book'], ['shop', 'Shop'], ['login', 'Sign in']];
   }
   const ICON_OF = { home: 'home', book: 'book', shop: 'shop', cart: 'cart', mine: 'mine', admin: 'admin', login: 'signin' };
-  const SHORT = { 'My reservations': 'Bookings', Availability: 'Book', 'Front desk': 'Desk', 'Sign in': 'Sign in' };
   function renderChrome() {
     const items = navItems(), nav = $('#mainnav');
     nav.innerHTML = '<span class="nav-ind" aria-hidden="true"></span>' + items.map(([v, l]) =>
       `<button type="button" data-action="view" data-view="${v}">${icon(ICON_OF[v])}${l}${v === 'cart' ? '<b class="cart-count" data-cart-count hidden>0</b>' : ''}</button>`).join('');
-    $('#bnav').innerHTML = items.slice(0, 5).map(([v, l]) =>
-      `<button type="button" data-action="view" data-view="${v}">${icon(ICON_OF[v])}${SHORT[l] || l}${v === 'cart' ? '<b class="cart-count" data-cart-count hidden>0</b>' : ''}</button>`).join('');
-    $('#bnav').style.gridTemplateColumns = `repeat(${Math.min(5, items.length)},1fr)`;
     const u = me(), unread = unreadCount();
     $('#tools').innerHTML = (u ? `<button type="button" class="opt-btn tool-bell" data-action="notif" aria-expanded="false" aria-controls="notif" aria-label="Notifications${unread ? ', ' + unread + ' unread' : ''}">${icon('bell')}<span>Alerts</span>${unread ? `<b class="cart-count">${unread}</b>` : ''}</button>` : '') +
-      `<button type="button" class="opt-btn" data-action="options" aria-expanded="false" aria-controls="opts">${icon(u ? 'user' : 'opts')}<span>${u ? esc(u.firstName) : 'Options'}</span></button>`;
+      `<button type="button" class="opt-btn" data-action="options" aria-expanded="false" aria-controls="opts">${icon(u ? 'user' : 'opts')}<span>${u ? esc(u.firstName) : 'Options'}</span></button>` +
+      // Phones only (CSS): opens the same #mainnav as a dropdown under the top bar.
+      `<button type="button" class="opt-btn nav-toggle" data-action="menu" aria-expanded="${menuOpen()}" aria-controls="mainnav" aria-label="Menu">${icon(menuOpen() ? 'close' : 'menu')}<span>Menu</span>${isPlayer() ? '<b class="cart-count" data-cart-count hidden>0</b>' : ''}</button>`;
     $('#modeNote').textContent = MODE === 'demo' ? 'Demo mode: data is stored in this browser only' : 'Connected to the Athletica server (data/db.json)';
   }
   function syncChrome(bump) {
@@ -210,9 +210,19 @@
       if (bump && n && !reduceMotion()) { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
     });
     const navView = { checkout: 'book', profile: isPlayer() ? 'mine' : 'home', signup: 'login', reset: 'login' }[S.view] || S.view;
-    document.querySelectorAll('#mainnav button, #bnav button').forEach(b => {
+    document.querySelectorAll('#mainnav button').forEach(b => {
       if (b.dataset.view === navView) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
     });
+  }
+  /* ---------- Phone menu: the main nav as a dropdown under the top bar ---------- */
+  const menuOpen = () => $('#top').classList.contains('menu-open');
+  function setMenu(open, refocus) {
+    const top = $('#top'), btn = $('#tools .nav-toggle');
+    if (open === menuOpen()) return;
+    top.classList.toggle('menu-open', open);
+    if (btn) { btn.setAttribute('aria-expanded', String(open)); btn.querySelector('.ni').outerHTML = icon(open ? 'close' : 'menu'); }
+    if (open) { closePanels(); const f = $('#mainnav [aria-current="page"]') || $('#mainnav button'); if (f) f.focus(); }
+    else if (refocus && btn) btn.focus();
   }
   function unreadCount() { return me() ? (V.notifications || []).filter(n => !n.read).length : 0; }
 
@@ -248,6 +258,7 @@
     ['opts', 'notif'].forEach(o => { if (o !== id) { document.getElementById(o).hidden = true; const t = document.querySelector(`[aria-controls="${o}"]`); if (t) t.setAttribute('aria-expanded', 'false'); } });
     if (open == null) open = p.hidden;
     if (open) {
+      setMenu(false);
       p.innerHTML = id === 'opts' ? optsHTML() : notifHTML();
       p.hidden = false;
       const f = p.querySelector('[aria-pressed="true"], button, [href]');
@@ -308,7 +319,8 @@
     shuttle: '<path d="M42 24h36l-10 54H52z"/><circle cx="60" cy="90" r="13"/><line x1="54" y1="24" x2="57" y2="78"/><line x1="66" y1="24" x2="63" y2="78"/><rect class="pa-f" x="47" y="83" width="26" height="6"/>',
     pump: '<rect x="50" y="30" width="20" height="68"/><line x1="60" y1="16" x2="60" y2="30"/><rect x="38" y="10" width="44" height="8"/><path d="M70 88h20v14"/><rect class="pa-f" x="50" y="58" width="20" height="12"/>'
   };
-  const prodArt = p => `<svg viewBox="0 0 120 120" aria-hidden="true">${PART[p.art] || PART.bottle}</svg>`;
+  // The product's illustration when it has one; the outline drawing otherwise. Decorative: the name is always next to it.
+  const prodArt = p => (p.image ? `<img src="${esc(p.image)}" alt="" width="400" height="300" loading="lazy" decoding="async">` : `<svg viewBox="0 0 120 120" aria-hidden="true">${PART[p.art] || PART.bottle}</svg>`);
 
   /* ---------- Home ---------- */
   function courtOpen(c) { return c.status === 'AVAILABLE'; }
@@ -580,7 +592,84 @@
     if (d && d !== S.date) { S.date = d; S.notice = 'No open ' + IX.sport[S.sport].name.toLowerCase() + ' hours left today, so this shows ' + fmtDate(d) + '.'; }
   }
   const clearSel = () => { S.sel = { court: null, hours: [] }; S.notice = ''; };
+  // Keeps the chosen court and drops the hours (new date, cleared slot, or a slot someone else took).
+  const clearHours = () => { S.sel = { court: S.sel.court, hours: [] }; S.notice = ''; };
   const selCourt = () => (S.sel.court ? IX.court[S.sel.court] : null);
+  const openHoursOf = (c, date) => (courtOpen(c) ? hoursList().filter(h => !isPast(date, h) && !cellOf(date, c.id, h)).length : 0);
+  function firstOpenDateFor(c) {
+    for (let i = 0; i < V.settings.bookingWindowDays; i++) { const d = addDays(today(), i); if (openHoursOf(c, d)) return d; }
+    return null;
+  }
+
+  /* ---------- 3D courts ---------- */
+  // Top-down floor art per sport on a 200 × 120 plane; CSS tilts the plane into 3D.
+  const LINES = 'fill="none" stroke="#fff" stroke-width="1.6"';
+  const FLOOR = {
+    basketball: () => `<rect width="200" height="120" fill="#D9A25F"/><g stroke="#B57D3D" stroke-width=".8" opacity=".55">${[16, 28, 40, 52, 64, 76, 88, 100].map(y => `<line x1="0" y1="${y}" x2="200" y2="${y}"/>`).join('')}</g>
+      <g fill="#C8452D" opacity=".9"><rect x="8" y="44" width="34" height="32"/><rect x="158" y="44" width="34" height="32"/><circle cx="100" cy="60" r="12"/></g>
+      <g ${LINES}><rect x="8" y="8" width="184" height="104"/><line x1="100" y1="8" x2="100" y2="112"/><circle cx="100" cy="60" r="12"/><rect x="8" y="44" width="34" height="32"/><rect x="158" y="44" width="34" height="32"/><path d="M8 18H22A42 42 0 0 1 22 102H8M192 18H178A42 42 0 0 0 178 102H192"/><circle cx="42" cy="60" r="10"/><circle cx="158" cy="60" r="10"/></g>`,
+    volleyball: () => `<rect width="200" height="120" fill="#2B5FA6"/><rect x="28" y="22" width="144" height="76" fill="#E07B39"/>
+      <g ${LINES}><rect x="28" y="22" width="144" height="76"/><line x1="100" y1="22" x2="100" y2="98"/><line x1="76" y1="22" x2="76" y2="98"/><line x1="124" y1="22" x2="124" y2="98"/></g>`,
+    badminton: () => `<rect width="200" height="120" fill="#2E8F5B"/>
+      <g ${LINES} stroke-width="1.4"><rect x="14" y="14" width="172" height="92"/><path d="M14 22H186M14 98H186M72 14V106M128 14V106M22 14V106M178 14V106M14 60H72M128 60H186"/></g>`,
+    tennis: () => `<rect width="200" height="120" fill="#3E8E5E"/><rect x="14" y="12" width="172" height="96" fill="#2F5FA8"/>
+      <g ${LINES} stroke-width="1.5"><rect x="14" y="12" width="172" height="96"/><path d="M14 24H186M14 96H186M58 24V96M142 24V96M58 60H142M14 60H20M180 60H186"/></g>`,
+    swimming: (i, n) => {
+      const top = 10, hgt = 100 / n;
+      let g = '<rect width="200" height="120" fill="#2FA3D5"/>';
+      for (let k = 0; k < n; k++) {
+        const y = top + k * hgt, mid = y + hgt / 2;
+        if (k === i) g += `<rect x="6" y="${y}" width="188" height="${hgt}" fill="#7AD3F2"/>`;
+        g += `<path d="M24 ${mid}H176M24 ${mid - 5}V${mid + 5}M176 ${mid - 5}V${mid + 5}" stroke="#16466F" stroke-width="2.6" opacity=".75" fill="none"/>`;
+      }
+      for (let k = 1; k < n; k++) { const y = top + k * hgt; g += `<line x1="6" y1="${y}" x2="194" y2="${y}" stroke="#fff" stroke-width="2.4" stroke-dasharray="5 5"/><line x1="6" y1="${y}" x2="194" y2="${y}" stroke="#FF2D00" stroke-width="2.4" stroke-dasharray="5 5" stroke-dashoffset="5"/>`; }
+      return g + '<rect x="3" y="3" width="194" height="114" fill="none" stroke="#E6EEF2" stroke-width="6"/>';
+    },
+    futsal: () => `<rect width="200" height="120" fill="#2E8A6E"/>
+      <g ${LINES}><rect x="8" y="8" width="184" height="104"/><line x1="100" y1="8" x2="100" y2="112"/><circle cx="100" cy="60" r="14"/><path d="M8 32A28 28 0 0 1 8 88M192 32A28 28 0 0 0 192 88"/></g><g fill="#fff"><circle cx="100" cy="60" r="1.8"/><circle cx="32" cy="60" r="1.5"/><circle cx="168" cy="60" r="1.5"/></g>`
+  };
+  // Slab edge colour, and what stands up off the floor: a net across the middle, backboards, or goals.
+  const EDGE = { basketball: '#8A5A2B', volleyball: '#1E3F70', badminton: '#1C5A3A', tennis: '#2A5A3C', swimming: '#A9BEC9', futsal: '#1E5A48' };
+  const UPRIGHT = {
+    volleyball: '<span class="c3d-net" style="--h:22px"></span>', badminton: '<span class="c3d-net" style="--h:17px"></span>', tennis: '<span class="c3d-net" style="--h:11px"></span>',
+    basketball: '<span class="c3d-board" style="left:4.5%"></span><span class="c3d-board" style="left:95.5%"></span>',
+    futsal: '<span class="c3d-goal" style="left:4%"></span><span class="c3d-goal" style="left:96%"></span>'
+  };
+  function court3D(c, i, n) {
+    const sid = c.sportId;
+    return `<span class="c3d-stage" aria-hidden="true"><span class="c3d" style="--edge:${EDGE[sid] || '#555'}">
+      <span class="c3d-ground"></span>
+      <span class="c3d-body"><span class="c3d-floor"><svg viewBox="0 0 200 120" preserveAspectRatio="none">${(FLOOR[sid] || FLOOR.basketball)(i, n)}</svg></span>
+        <span class="c3d-edge c3d-edge-x"></span><span class="c3d-edge c3d-edge-y"></span>${UPRIGHT[sid] || ''}</span>
+    </span></span>`;
+  }
+  function courtCard(c, i, n) {
+    const sel = S.sel.court === c.id, open = openHoursOf(c, S.date), closed = !courtOpen(c);
+    const avail = closed ? `<span class="cc-avail closed">${c.status === 'MAINTENANCE' ? 'Closed for maintenance' : 'Unavailable'}</span>`
+      : open ? `<span class="cc-avail ok">${plural(open, 'open hour')}</span>` : '<span class="cc-avail full">Fully booked</span>';
+    const said = closed ? (c.status === 'MAINTENANCE' ? 'closed for maintenance' : 'unavailable') : open ? plural(open, 'open hour') + ' on ' + fmtDate(S.date) : 'fully booked on ' + fmtDate(S.date);
+    return `<button type="button" class="court-card${closed ? ' is-closed' : ''}" data-action="court" data-court="${c.id}" aria-pressed="${sel}"${closed ? ' aria-disabled="true"' : ''} aria-label="${esc(c.name)}, ${peso(c.hourlyRate)} per hour, ${esc(said)}">
+      ${court3D(c, i, n)}<span class="cc-tag" aria-hidden="true">${sel ? '✓ Selected' : closed ? 'Closed' : 'Select'}</span>
+      <span class="cc-body"><span class="cc-name">${esc(c.name)}</span><span class="cc-rate">${peso(c.hourlyRate)} / hour</span>${avail}</span>
+    </button>`;
+  }
+  function pickCourt(id) {
+    const c = IX.court[id], s = c && IX.sport[c.sportId];
+    if (!c || c.sportId !== S.sport) return;
+    S.focusSel = `[data-action="court"][data-court="${id}"]`;
+    if (!courtOpen(c)) {
+      S.notice = `${c.name} is ${c.status === 'MAINTENANCE' ? 'closed for maintenance' : 'unavailable'}, so it can't be booked right now. Choose another ${s.unit}.`;
+      render(); return;
+    }
+    const changed = S.sel.court !== id;
+    if (changed) S.sel = { court: id, hours: [] };
+    delete S.errors.slot;
+    const open = openHoursOf(c, S.date);
+    S.notice = `${c.name} selected. ${open ? plural(open, 'open hour') + ' on ' + fmtDate(S.date) + '. Pick a start time.' : 'No open hours on ' + fmtDate(S.date) + '.'}`;
+    transition(render, 'swap');
+    // On phones the times sit under the courts, so bring them into view.
+    if (changed && isNarrow()) setTimeout(() => { const t = $('#times'); if (t) t.scrollIntoView({ behavior: reduceMotion() ? 'auto' : 'smooth', block: 'start' }); }, 80);
+  }
 
   function quote(court, hours, type) {
     const courtPrice = court.hourlyRate * hours, disc = Math.round(courtPrice * PLAYER_TYPES[type].discount / 100), total = courtPrice - disc;
@@ -604,42 +693,57 @@
     if (!IX.sport[S.sport] || !(IX.courtsBySport[S.sport] || []).length) S.sport = sportsList()[0].id;
     if (S.date < today() || S.date > addDays(today(), V.settings.bookingWindowDays - 1)) { S.date = today(); clearSel(); }
     const s = IX.sport[S.sport], courts = IX.courtsBySport[S.sport], sel = S.sel;
-    if (sel.court && (IX.court[sel.court].sportId !== S.sport || sel.hours.some(h => isPast(S.date, h) || cellOf(S.date, sel.court, h)))) clearSel();
-    const has = !!(sel.court && sel.hours.length), narrow = isNarrow();
+    if (sel.court && (!IX.court[sel.court] || IX.court[sel.court].sportId !== S.sport)) clearSel();
+    else if (sel.court && !courtOpen(IX.court[sel.court])) { const n = IX.court[sel.court].name; clearSel(); S.notice = `${n} was just closed. Choose another ${s.unit}.`; }
+    else if (sel.court && sel.hours.some(h => isPast(S.date, h) || cellOf(S.date, sel.court, h))) clearHours();
+    const has = !!(S.sel.court && S.sel.hours.length), narrow = isNarrow(), picker = !isAdmin();
     const chips = sportsList().map(x => `<button type="button" class="chip" data-action="sport" data-sport="${x.id}" aria-pressed="${x.id === S.sport}">${esc(x.name)}</button>`).join('');
     let openCount = 0;
-    const cellHTML = (c, h) => {
+    const cellHTML = (c, h, withTime) => {
       const key = c.id + '|' + h, occ = cellOf(S.date, c.id, h);
       let st = 'free';
       if (!courtOpen(c)) st = 'closed';
       else if (isPast(S.date, h)) st = 'past';
       else if (occ) st = occ.mine ? 'mine' : occ.s;
-      else if (sel.court === c.id && sel.hours.includes(h)) st = 'sel';
+      else if (S.sel.court === c.id && S.sel.hours.includes(h)) st = 'sel';
       if (st === 'free' || st === 'sel') openCount++;
       const label = { free: 'open', sel: 'selected', taken: 'booked', held: 'temporarily held', pend: 'pending payment', mine: 'your reservation', past: 'unavailable, time has passed', closed: c.status === 'MAINTENANCE' ? 'closed for maintenance' : 'unavailable' }[st];
       const cls = st === 'mine' ? 'taken mine' : st === 'closed' ? 'past closed' : st;
       const tag = { held: 'Hold', pend: 'Pay', mine: 'Yours' }[st];
-      const text = narrow ? `<span>${fmtHour(h)}${st === 'sel' ? ' ✓' : ''}</span>${tag ? `<small>${tag}</small>` : ''}` : (st === 'sel' ? '✓' : tag ? `<small>${tag}</small>` : '');
+      const text = narrow || withTime ? `<span>${fmtHour(h)}${st === 'sel' ? ' ✓' : ''}</span>${tag ? `<small>${tag}</small>` : ''}` : (st === 'sel' ? '✓' : tag ? `<small>${tag}</small>` : '');
       const dis = st !== 'free' && st !== 'sel';
       return `<button type="button" class="cell ${cls}${st === 'sel' && key === S.focusKey ? ' just' : ''}" data-action="slot" data-court="${c.id}" data-h="${h}" data-key="${key}"
         ${dis ? 'disabled' : `aria-pressed="${st === 'sel'}"`} aria-label="${esc(c.name)}, ${fmtRange(h, h + 1)}, ${label}" title="${esc(c.name)}, ${fmtRange(h, h + 1)}: ${label}">${text}</button>`;
     };
     let grid;
     const facName = c => `${esc(c.name)}${courtOpen(c) ? '' : `<small>${c.status === 'MAINTENANCE' ? 'Maintenance' : 'Unavailable'}</small>`}`;
-    if (narrow) grid = courts.map(c => `<div class="fac-block"><h3>${facName(c)}</h3><div class="hour-grid">${hoursList().map(h => cellHTML(c, h)).join('')}</div></div>`).join('');
+    const pc = picker ? selCourt() : null;
+    if (picker && !pc) {
+      grid = `<div class="pick-empty"><span class="pe-arrow" aria-hidden="true">↑</span><p><strong>No ${esc(s.unit)} selected yet.</strong> Choose one above to see its open times, price and details.</p></div>`;
+    } else if (picker) {
+      grid = `<dl class="court-facts"><div><dt>Surface</dt><dd>${esc(s.surface)}</dd></div><div><dt>Size</dt><dd>${esc(s.size)}</dd></div>
+          <div><dt>Players</dt><dd>Up to ${s.maxPlayers}</dd></div><div><dt>Rate</dt><dd>${peso(pc.hourlyRate)} / hour</dd></div><div><dt>Deposit</dt><dd>${depositPct(pc)}% to confirm</dd></div></dl>
+        <div class="hour-grid times" role="group" aria-label="${esc(pc.name)} hours">${hoursList().map(h => cellHTML(pc, h, true)).join('')}</div>`;
+    } else if (narrow) grid = courts.map(c => `<div class="fac-block"><h3>${facName(c)}</h3><div class="hour-grid">${hoursList().map(h => cellHTML(c, h)).join('')}</div></div>`).join('');
     else {
       let cells = '<div class="corner"></div>' + hoursList().map(h => `<div class="hd">${fmtHour(h)}</div>`).join('');
       courts.forEach(c => { cells += `<div class="fac">${facName(c)}</div>` + hoursList().map(h => cellHTML(c, h)).join(''); });
       grid = `<div class="scroll-x"><div class="slots" style="grid-template-columns:118px repeat(${hoursList().length},minmax(52px,1fr))">${cells}</div></div>`;
     }
-    if (!openCount) {
+    if (picker && pc && !openCount) {
+      const next = firstOpenDateFor(pc);
+      grid = `<div class="closed"><p>No open hours on ${esc(pc.name)} for ${esc(fmtDate(S.date))}.</p>
+        ${next ? `<button type="button" class="btn btn-primary" data-action="date" data-date="${next}">Show ${esc(fmtDate(next))}</button>` : `<p>${esc(pc.name)} is fully booked this week. Try another ${esc(s.unit)}.</p>`}</div>`;
+    } else if (!openCount && !picker) {
       const next = firstOpenDate(S.sport);
       grid = `<div class="closed"><p>No open hours left for ${esc(s.name.toLowerCase())} on ${esc(fmtDate(S.date))}.</p>
         ${next ? `<button type="button" class="btn btn-primary" data-action="date" data-date="${next}">Show ${esc(fmtDate(next))}</button>` : '<p>Every slot this week is taken. Try another sport.</p>'}</div>`;
     }
-    const c = selCourt(), start = has ? sel.hours[0] : 0, end = has ? sel.hours[sel.hours.length - 1] + 1 : 0;
+    const c = selCourt(), hrs = S.sel.hours, start = has ? hrs[0] : 0, end = has ? hrs[hrs.length - 1] + 1 : 0;
     const selInfo = has
-      ? `<strong>${esc(courtLabel(c.id))}</strong><p>${esc(fmtDate(S.date))}, ${fmtRange(start, end)} (${plural(sel.hours.length, 'hour')})</p>${btn('clear', 'Clear selection', 'btn-ghost')}`
+      ? `<strong>${esc(courtLabel(c.id))}</strong><p>${esc(fmtDate(S.date))}, ${fmtRange(start, end)} (${plural(hrs.length, 'hour')})</p>${btn('clear', 'Clear times', 'btn-ghost')}`
+      : c && picker ? `<strong>${esc(courtLabel(c.id))}</strong><p>Now pick a start time. Tap the next hour to extend, up to ${V.settings.maxHoursPerBooking} hours.</p>`
+      : picker ? `<strong>No ${esc(s.unit)} picked yet</strong><p>Choose a ${esc(s.unit)} above, then pick up to ${V.settings.maxHoursPerBooking} back-to-back hours.</p>`
       : `<strong>No slot picked yet</strong><p>Tap an open hour on the grid. Tap the hour before or after it to extend, up to ${V.settings.maxHoursPerBooking} hours.</p>`;
     let panel;
     if (isAdmin()) {
@@ -669,17 +773,23 @@
     return `
       <div class="page-head"><p class="hud"><span class="tick"></span>${isAdmin() ? 'Availability' : 'Reservation'}</p>
         <h1 class="page-title" tabindex="-1">${isAdmin() ? 'Court availability' : 'Book a slot'}</h1>
-        <p>Choose a sport and date, then pick up to ${V.settings.maxHoursPerBooking} back-to-back hours on one ${esc(s.unit)}.</p></div>
+        <p>${isAdmin() ? `Every ${esc(s.unit)} and hour at a glance.` : `Choose a sport, a date and a ${esc(s.unit)}, then pick up to ${V.settings.maxHoursPerBooking} back-to-back hours.`}</p></div>
       <div class="book"><div>
         <div class="chips" role="group" aria-label="Sport">${chips}</div>
         ${dayStrip(S.date, 'date')}
-        <div class="grid-head"><h2>${esc(s.name)} on ${esc(fmtDate(S.date))}</h2><span class="muted">${plural(openCount, 'open hour')} · from ${peso(sportRate(s.id))} per hour</span></div>
+        ${picker ? `<section class="court-pick" aria-labelledby="pick-h">
+          <div class="grid-head pick-head"><h2 id="pick-h">Choose a ${esc(s.unit)}</h2><span class="muted">${plural(courts.length, s.unit)} · ${esc(fmtDate(S.date))}</span></div>
+          <div class="cc-row" role="group" aria-labelledby="pick-h">${courts.map((x, i) => courtCard(x, i, courts.length)).join('')}</div></section>` : ''}
+        <div class="grid-head" id="times" tabindex="-1">${pc
+          ? `<h2>${esc(pc.name)} · ${esc(fmtDate(S.date))}</h2><span class="muted">${plural(openCount, 'open hour')} · ${peso(pc.hourlyRate)} per hour</span>`
+          : picker ? `<h2>Pick a time</h2><span class="muted">${esc(s.name)} · ${esc(fmtDate(S.date))}</span>`
+          : `<h2>${esc(s.name)} on ${esc(fmtDate(S.date))}</h2><span class="muted">${plural(openCount, 'open hour')} · from ${peso(sportRate(s.id))} per hour</span>`}</div>
         <div class="grid-card">${grid}
-          <div class="legend" aria-hidden="true">
+          ${picker && !pc ? '' : `<div class="legend" aria-hidden="true">
             <span><i class="sw free"></i>Open</span><span><i class="sw sel"></i>Your selection</span>
             <span><i class="sw held"></i>Temporarily held</span><span><i class="sw pend"></i>Pending payment</span>
             <span><i class="sw taken"></i>Booked</span><span><i class="sw past"></i>Time passed or closed</span>
-          </div></div>
+          </div>`}</div>
         <div role="status" aria-live="polite">${S.notice ? `<p class="notice">${esc(S.notice)}</p>` : ''}</div>
         ${S.errors.slot ? `<p class="notice err" id="err-slot" tabindex="-1">${esc(S.errors.slot)}</p>` : ''}
       </div>
@@ -696,7 +806,7 @@
       const lo = sel.hours[0], hi = sel.hours[sel.hours.length - 1];
       if (sel.hours.includes(h)) {
         if (h === lo) sel.hours.shift(); else if (h === hi) sel.hours.pop(); else S.sel = { court, hours: [h] };
-        if (!S.sel.hours.length) S.sel = { court: null, hours: [] };
+        if (!S.sel.hours.length) S.sel = { court, hours: [] };
       } else if (h === lo - 1 || h === hi + 1) {
         if (sel.hours.length >= max) S.notice = `Bookings are limited to ${max} hours. Remove an end hour or start a new selection.`;
         else { sel.hours.push(h); sel.hours.sort((a, b) => a - b); }
@@ -708,7 +818,8 @@
   }
   async function reserve() {
     const f = S.form, s = IX.sport[S.sport], e = {};
-    if (!S.sel.court || !S.sel.hours.length) e.slot = 'Pick at least one open hour on the grid.';
+    if (!S.sel.court) e.slot = `Choose a ${s.unit} first, then pick a time.`;
+    else if (!S.sel.hours.length) e.slot = `Pick at least one open hour on ${IX.court[S.sel.court].name}.`;
     if (!/^09\d{9}$/.test(normPhone(f.phone))) e.phone = 'Enter a PH mobile number, like 0917 123 4567 or +63 917 123 4567.';
     if (f.type === 'TEAM') {
       if (!f.teamName.trim()) e.teamName = 'Enter the team or league name.';
@@ -723,7 +834,7 @@
     if (!out.ok) {
       const field = { phone: 'phone', team_name: 'teamName', headcount: 'headcount' }[out.error.code] || 'slot';
       S.errors = { [field]: out.error.message };
-      if (['slot_taken', 'past', 'court_closed'].includes(out.error.code)) clearSel();
+      if (['slot_taken', 'past'].includes(out.error.code)) clearHours(); else if (out.error.code === 'court_closed') clearSel();
       S.focusSel = field === 'slot' ? '#err-slot' : '[name="' + field + '"]';
       render();
       return;
@@ -1990,19 +2101,31 @@
   function setHeader() {
     const top = $('#top');
     top.classList.toggle('solid', window.scrollY > 12);
-    // On the desktop rail the header sits beside the page, so nothing needs clearing at the top.
-    document.documentElement.style.setProperty('--hh', (isRail() ? 0 : top.offsetHeight) + 'px');
+    document.documentElement.style.setProperty('--hh', top.offsetHeight + 'px');
   }
   function moveInd() {
     const nav = $('#mainnav'), ind = nav.querySelector('.nav-ind'), cur = nav.querySelector('[aria-current="page"]');
     if (!ind) return;
-    if (!cur || !cur.offsetWidth) { ind.style.opacity = '0'; return; }
+    if (!cur || !cur.offsetWidth || isPhoneNav()) { ind.style.opacity = '0'; return; }
     ind.style.opacity = '1';
-    if (isRail()) { ind.style.width = '100%'; ind.style.height = cur.offsetHeight + 'px'; ind.style.transform = 'translateY(' + cur.offsetTop + 'px)'; }
-    else { ind.style.height = '100%'; ind.style.width = cur.offsetWidth + 'px'; ind.style.transform = 'translateX(' + cur.offsetLeft + 'px)'; }
+    ind.style.height = '100%'; ind.style.width = cur.offsetWidth + 'px'; ind.style.transform = 'translateX(' + cur.offsetLeft + 'px)';
+  }
+  const SEL_KEY = 'athletica-booking';
+  function saveSelection() {
+    try { sessionStorage.setItem(SEL_KEY, JSON.stringify({ sport: S.sport, date: S.date, court: S.sel.court, hours: S.sel.hours })); } catch (e) { /* storage blocked */ }
+  }
+  function restoreSelection() {
+    let v = null;
+    try { v = JSON.parse(sessionStorage.getItem(SEL_KEY) || 'null'); } catch (e) { v = null; }
+    if (!v || !IX.sport[v.sport]) return;
+    S.sport = v.sport;
+    if (typeof v.date === 'string' && v.date >= today() && v.date <= addDays(today(), V.settings.bookingWindowDays - 1)) S.date = v.date;
+    const c = IX.court[v.court];
+    if (c && c.sportId === v.sport) S.sel = { court: c.id, hours: Array.isArray(v.hours) ? v.hours.filter(Number.isInteger).slice(0, V.settings.maxHoursPerBooking) : [] };
   }
   function render() {
     if (!V) return;
+    if (S.view === 'book') saveSelection();
     if (S.view !== 'cart') S.lastOrder = null;
     const app = $('#app');
     const sc = app.dataset.view === S.view ? app.querySelector('.scroll-x') : null, left = sc ? sc.scrollLeft : 0;
@@ -2026,10 +2149,12 @@
     runCountUp();
     scIdx = -1;
     if (S.view === 'home') scUpdate(); else delete document.documentElement.dataset.sport;
-    document.title = (TITLES[S.view] ? TITLES[S.view] + ' · ' : '') + 'Athletica Manggahan';
+    const title = S.view === 'book' && isAdmin() ? 'Court availability' : TITLES[S.view];
+    document.title = (title ? title + ' · ' : '') + 'Athletica Manggahan';
   }
-  function go(view) {
-    closeDlg(); closePanels();
+  function go(view, fromHistory) {
+    if (view === 'checkout' && !S.co) view = isPlayer() ? 'mine' : 'home';
+    closeDlg(); closePanels(); setMenu(false);
     const vt = !!document.startViewTransition && !reduceMotion();
     transition(() => {
       if (vt) runWipe();
@@ -2041,7 +2166,10 @@
       S.focusSel = S.nextFocus || 'h1'; S.nextFocus = null;
       render();
       window.scrollTo(0, 0);
-      try { history.replaceState(null, '', '#' + S.view); } catch (e) { /* sandboxed frame */ }
+      try {
+        if (fromHistory || location.hash === '#' + S.view) history.replaceState(null, '', '#' + S.view);
+        else history.pushState(null, '', '#' + S.view);
+      } catch (e) { /* sandboxed frame */ }
     }, 'page');
   }
   async function refresh(force) {
@@ -2087,6 +2215,8 @@
   document.addEventListener('click', async e => {
     const openPanel = ['opts', 'notif'].find(id => !document.getElementById(id).hidden);
     if (openPanel && !e.target.closest('#opts, #notif, [data-action="options"], [data-action="notif"]')) togglePanel(openPanel, false);
+    // A tap outside the open menu only closes it, so it can't also press whatever sits underneath.
+    if (menuOpen() && !e.target.closest('#mainnav, [data-action="menu"]')) { setMenu(false); return; }
     const t = e.target.closest('[data-action]');
     if (!t || !V) return;
     const d = t.dataset;
@@ -2097,10 +2227,11 @@
         S.sport = d.sport; clearSel(); delete S.errors.slot;
         if (S.view !== 'book') go('book'); else transition(() => { ensureOpenDate(); render(); }, 'swap');
         break;
-      case 'date': S.date = d.date; clearSel(); delete S.errors.slot; transition(render, 'swap'); break;
+      case 'date': S.date = d.date; clearHours(); delete S.errors.slot; transition(render, 'swap'); break;
+      case 'court': pickCourt(d.court); break;
       case 'adate': S.adminDate = d.date; S.countUp = true; transition(render, 'swap'); break;
       case 'slot': clickSlot(d.court, Number(d.h)); break;
-      case 'clear': clearSel(); render(); break;
+      case 'clear': clearHours(); render(); break;
       case 'to-form': {
         if (!me()) { S.next = 'book'; S.loginNotice = 'Sign in to reserve this slot. Your selection is kept.'; go('login'); break; }
         const panel = $('.panel');
@@ -2118,6 +2249,7 @@
       case 'copy': copyText(t, d.ref); break;
       case 'close': closeDlg(); S.rx = null; if (S.stale) refresh(true); break;
       case 'keep': S.pending = null; if (!$('#opts').hidden) togglePanel('opts', true); else render(); break;
+      case 'menu': setMenu(!menuOpen()); break;
       case 'options': togglePanel('opts'); break;
       case 'notif': togglePanel('notif'); break;
       case 'theme': applyTheme(d.mode, true); togglePanel('opts', true); { const f = $(`#opts [data-mode="${d.mode}"]`); if (f) f.focus(); } break;
@@ -2267,13 +2399,30 @@
   });
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
+    if (menuOpen()) { setMenu(false, true); return; }
     const open = ['opts', 'notif'].find(id => !document.getElementById(id).hidden);
     if (open) { togglePanel(open, false); const tr = document.querySelector(`[aria-controls="${open}"]`); if (tr) tr.focus(); }
   });
   $('#dlg').addEventListener('close', () => { S.cx = null; S.rx = null; if (S.stale) refresh(true); });
   $('#dlg').addEventListener('click', e => { if (e.target === e.currentTarget) closeDlg(); });
   if (mq) { const onMq = () => { if (V && S.view === 'book') render(); }; if (mq.addEventListener) mq.addEventListener('change', onMq); else if (mq.addListener) mq.addListener(onMq); }
-  window.addEventListener('resize', () => { setHeader(); moveInd(); if (V && S.view === 'home') scUpdate(); });
+  window.addEventListener('popstate', () => {
+    const v = location.hash.slice(1);
+    if (V && v !== S.view) go(VIEWS[v] ? v : 'home', true);
+  });
+  // 3D courts lean toward the pointer. Touch and keyboard get the same lift without the lean.
+  document.addEventListener('pointermove', e => {
+    const card = e.target.closest && e.target.closest('.court-card');
+    if (!card || e.pointerType === 'touch' || reduceMotion()) return;
+    const r = card.getBoundingClientRect();
+    card.style.setProperty('--px', ((e.clientX - r.left) / r.width - 0.5).toFixed(3));
+    card.style.setProperty('--py', ((e.clientY - r.top) / r.height - 0.5).toFixed(3));
+  });
+  document.addEventListener('pointerout', e => {
+    const card = e.target.closest && e.target.closest('.court-card');
+    if (card && !card.contains(e.relatedTarget)) { card.style.removeProperty('--px'); card.style.removeProperty('--py'); }
+  });
+  window.addEventListener('resize', () => { if (menuOpen() && !isPhoneNav()) setMenu(false); setHeader(); moveInd(); if (V && S.view === 'home') scUpdate(); });
 
   /* ---------- Timers ---------- */
   let lastAnnounce = '', expiring = false;
@@ -2318,12 +2467,14 @@
       if (!out.view) throw new Error(out.error ? out.error.message : 'No data');
       setView(out.view);
       S.form.phone = me() ? me().phone : '';
+      restoreSelection();
       const want = location.hash.slice(1);
       if (VIEWS[want]) S.view = want;
       if (S.view === 'checkout' && !S.co) S.view = isPlayer() ? 'mine' : 'home';
       if (S.view === 'book') ensureOpenDate();
       renderChrome();
       render();
+      try { history.replaceState(null, '', '#' + S.view); } catch (e) { /* sandboxed frame */ }
     } catch (e) {
       $('#app').innerHTML = '<div class="wrap page"><div class="empty"><h2>Athletica Manggahan couldn’t start.</h2><p>Reload the page. If it keeps happening, restart the server with <code>node server.js</code>.</p></div></div>';
     }

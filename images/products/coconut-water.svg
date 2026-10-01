@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" role="img" aria-label="Coconut water">
+<defs><pattern id="g" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 0H0V20" fill="none" stroke="#000" stroke-opacity=".07" stroke-width="1"/></pattern></defs>
+<rect width="400" height="300" fill="#C9ECF5"/><rect width="400" height="300" fill="url(#g)"/>
+<ellipse cx="200" cy="258" rx="58" ry="13" fill="#000" opacity=".17"/>
+
+<rect x="150" y="66" width="100" height="180" rx="12" fill="#F4F1E8"/>
+<rect x="150" y="150" width="100" height="66" fill="#2F8F4E"/>
+<path d="M226 82 C250 92 254 112 244 132 C236 116 222 106 206 104 C214 96 220 88 226 82 Z" fill="#3BA95C" stroke="#141412" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="196" cy="120" r="28" fill="#6B3E1F" stroke="#141412" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="196" cy="120" r="18" fill="#FFFDF5" stroke="#141412" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>
+<text x="200" y="192" font-family="Arial Black, Arial, Helvetica, sans-serif" font-weight="900" font-size="22" letter-spacing="2" text-anchor="middle" fill="#fff">COCO</text>
+<rect x="160" y="78" width="9" height="160" rx="4.5" fill="#fff" opacity=".55"/>
+<rect x="150" y="66" width="100" height="180" rx="12" fill="none" stroke="#141412" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"/>
+<ellipse cx="200" cy="66" rx="50" ry="10" fill="#CFCFCF" stroke="#141412" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+<ellipse cx="200" cy="64" rx="34" ry="5" fill="#B5B5B5"/>
+<rect x="188" y="60" width="20" height="5" rx="2.5" fill="#8C8C8C"/>
+</svg>

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" role="img" aria-label="Bananas">
+<defs><pattern id="g" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 0H0V20" fill="none" stroke="#000" stroke-opacity=".07" stroke-width="1"/></pattern></defs>
+<rect width="400" height="300" fill="#D9F0C4"/><rect width="400" height="300" fill="url(#g)"/>
+<ellipse cx="200" cy="258" rx="120" ry="13" fill="#000" opacity=".17"/>
+
+<path d="M96 150 C110 220 220 248 304 196 C310 192 308 184 300 184 C230 214 142 196 116 140 Z" fill="#FFD93B" stroke="#141412" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M120 164 C152 206 230 216 292 192" fill="none" stroke="#E0B420" stroke-width="4"/>
+<path d="M96 150 L86 128 L102 124 L116 140" fill="#7A5A1E" stroke="#141412" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M300 184 L312 186 L306 198" fill="#4A3A1A" stroke="#141412" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M110 120 C140 186 236 200 308 146 C314 141 310 134 302 136 C242 176 158 170 130 112 Z" fill="#FFE45C" stroke="#141412" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M132 132 C166 174 236 178 296 146" fill="none" stroke="#E7C02A" stroke-width="4"/>
+<path d="M110 120 L104 98 L120 96 L130 112" fill="#7A5A1E" stroke="#141412" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M302 136 L314 134 L312 148" fill="#4A3A1A" stroke="#141412" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

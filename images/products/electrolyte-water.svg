@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" role="img" aria-label="Electrolyte water">
+<defs><pattern id="g" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 0H0V20" fill="none" stroke="#000" stroke-opacity=".07" stroke-width="1"/></pattern></defs>
+<rect width="400" height="300" fill="#BFE6F5"/><rect width="400" height="300" fill="url(#g)"/>
+<ellipse cx="200" cy="258" rx="52" ry="13" fill="#000" opacity=".17"/>
+
+<path d="M170 90 L230 90 Q242 90 242 104 L242 236 Q242 252 226 252 L174 252 Q158 252 158 236 L158 104 Q158 90 170 90 Z" fill="#2EC4B6"/>
+<rect x="158" y="132" width="84" height="74" fill="#fff"/>
+<rect x="158" y="190" width="84" height="16" fill="#D8FF00"/>
+<text x="200" y="170" font-family="Arial Black, Arial, Helvetica, sans-serif" font-weight="900" font-size="22" letter-spacing="1" text-anchor="middle" fill="#141412">ZERO</text>
+<text x="200" y="186" font-family="Arial Black, Arial, Helvetica, sans-serif" font-weight="900" font-size="10" letter-spacing="3" text-anchor="middle" fill="#141412">SUGAR</text>
+<rect x="168" y="100" width="7" height="26" rx="3.5" fill="#fff" opacity=".6"/>
+<rect x="168" y="212" width="7" height="30" rx="3.5" fill="#fff" opacity=".6"/>
+<path d="M170 90 L230 90 Q242 90 242 104 L242 236 Q242 252 226 252 L174 252 Q158 252 158 236 L158 104 Q158 90 170 90 Z" fill="none" stroke="#141412" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M158 132 H242 M158 206 H242" stroke="#141412" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+<rect x="172" y="66" width="56" height="26" rx="4" fill="#141412" stroke="#141412" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+<rect x="189" y="42" width="22" height="26" rx="4" fill="#D8FF00" stroke="#141412" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

@@ -110,6 +110,11 @@
     ['Feather shuttlecocks', 'Tube of 12', 'CAT-003', 540, 7, 'shuttle', false],
     ['Ball pump', 'With 2 needles', 'CAT-003', 220, 5, 'pump', false]
   ];
+  // Product illustrations in images/products/, keyed by each product's art type.
+  const PRODUCT_IMAGES = { water: 'bottled-water', bottle: 'sports-drink', bar: 'protein-bar', squeeze: 'electrolyte-water', can: 'coconut-water',
+    slab: 'oat-energy-bar', banana: 'bananas', pouch: 'trail-mix', flask: 'steel-water-bottle', towel: 'court-towel', tape: 'overgrip-tape',
+    band: 'wristbands', shuttle: 'feather-shuttlecocks', pump: 'ball-pump' };
+  const productImage = art => (PRODUCT_IMAGES[art] ? 'images/products/' + PRODUCT_IMAGES[art] + '.svg' : null);
   const REASONS = ['Personal emergency', 'Schedule conflict', 'Weather concern', 'Transportation problem', 'Health-related reason',
     'Found another schedule', 'Booked the wrong date/time', 'No longer needed', 'Financial reason', 'Other'];
   const WALK_INS = ['J. Dela Cruz', 'M. Santos', 'R. Reyes', 'A. Bautista', 'K. Mendoza', 'L. Garcia', 'D. Villanueva',
@@ -153,7 +158,7 @@
       id: nextId(db, 'COURT', 3), name, sportId, location: 'Manggahan Complex', hourlyRate: rate, depositPercentage: null, status: 'AVAILABLE', image: null
     }));
     PRODUCTS.forEach(([name, description, categoryId, price, stock, art, addon]) => db.products.push({
-      id: nextId(db, 'PROD', 3), name, description, categoryId, price, stock, status: 'ACTIVE', art, addon
+      id: nextId(db, 'PROD', 3), name, description, categoryId, price, stock, status: 'ACTIVE', art, image: productImage(art), addon
     }));
     REASONS.forEach(label => db.cancellationReasons.push({ id: nextId(db, 'CR', 3), label, active: true }));
     seedDemoHistory(db, t);
@@ -1068,6 +1073,7 @@
       const uid = token ? sessions.get(token) : null;
       const found = uid ? db.users.find(u => u.id === uid && u.status === 'ACTIVE') : null;
       if (!Array.isArray(db.passwordResets)) db.passwordResets = [];
+      db.products.forEach(p => { if (p.image === undefined) p.image = productImage(p.art); });
       const ctx = {
         db, t, actor: found || null, changed: false, hasher, throttle, random, newToken: undefined, devMail: undefined,
         signIn(u) { const tk = random(); sessions.set(tk, u.id); ctx.newToken = tk; },
