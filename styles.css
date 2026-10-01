@@ -1194,3 +1194,28 @@ body{display:flex;flex-direction:column;min-height:100vh;min-height:100dvh}
 @supports not (transform-style:preserve-3d){.c3d{transform:none}.c3d-edge,.c3d-net,.c3d-board,.c3d-goal,.c3d-ground{display:none}}
 /* Very narrow phones: three header buttons plus the wordmark need a tighter gutter */
 @media (max-width:360px){.top-in{padding-inline:16px}.brand{gap:7px}.brand strong{font-size:.82rem}.top-tools{gap:5px}}
+
+/* ---------- Sign in / Sign up (visitors) and the Features section — existing tokens only ---------- */
+.btn-sm.btn-primary{box-shadow:2px 2px 0 var(--red-shadow)}
+.btn-sm.btn-primary:hover{box-shadow:4px 4px 0 var(--red-shadow);translate:-1px -1px}
+.top-auth{display:inline-flex;gap:10px}
+.nav-auth{display:none}
+.cta-actions{display:flex;gap:14px;flex-wrap:wrap}
+.cta .btn:not(.btn-primary){background:transparent;color:var(--slab-fg);box-shadow:none}
+.cta .btn:not(.btn-primary):hover{background:transparent;box-shadow:5px 5px 0 var(--slab-fg)}
+@media (max-width:1199px){.top-auth .btn{padding:0 10px}}
+@media (max-width:759px){
+  .top-auth{display:none}
+  .top nav.mainnav .nav-auth{display:flex;gap:12px;padding:16px 20px 20px;border-top:var(--bw) solid var(--line)}
+  .top nav.mainnav .nav-auth .btn{flex:1;justify-content:center;min-height:var(--h-md);padding:0 12px;border:var(--bw) solid var(--line);
+    background:var(--panel);color:var(--fg);font-family:var(--font);font-size:.74rem;box-shadow:var(--hard-sm)}
+  .top nav.mainnav .nav-auth .btn-primary{background:var(--fg);color:var(--inv-fg);box-shadow:3px 3px 0 var(--red-shadow)}
+}
+.feats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--bw);background:var(--line);border:var(--bw) solid var(--line);box-shadow:var(--hard)}
+.feat{background:var(--panel);padding:24px 22px 26px;min-width:0}
+.feat-ic{display:grid;place-items:center;width:44px;height:44px;background:var(--red);color:#0B0B0A;border:var(--bw) solid var(--line)}
+.feat-ic .ni{width:22px;height:22px}
+.feat h3{font-size:1.06rem;margin:16px 0 8px}
+.feat p{color:var(--muted);font-size:.95rem}
+@media (max-width:900px){.feats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:560px){.feats{grid-template-columns:minmax(0,1fr)}}

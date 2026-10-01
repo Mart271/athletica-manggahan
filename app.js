@@ -181,6 +181,9 @@
     opts: '<path d="M3 7h11M19 7h2M3 17h3M11 17h10"/><rect x="14" y="4.5" width="5" height="5"/><rect x="6" y="14.5" width="5" height="5"/>',
     signin: '<path d="M14 4h6v16h-6M3 12h12M11 8l4 4-4 4"/>',
     menu: '<path d="M3 6h18M3 12h18M3 18h18"/>',
+    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    features: '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>',
+    how: '<path d="M9 6h12M9 12h12M9 18h12"/><rect x="3" y="4" width="3" height="4"/><rect x="3" y="10" width="3" height="4"/><rect x="3" y="16" width="3" height="4"/>',
     close: '<path d="M5 5l14 14M19 5L5 19"/>'
   };
   const icon = k => `<svg class="ni" viewBox="0 0 24 24" aria-hidden="true">${ICON[k]}</svg>`;
@@ -189,16 +192,22 @@
   function navItems() {
     if (isAdmin()) return [['home', 'Home'], ['book', 'Availability'], ['admin', 'Front desk'], ['shop', 'Shop']];
     if (isPlayer()) return [['home', 'Home'], ['book', 'Book'], ['shop', 'Shop'], ['cart', 'Cart'], ['mine', 'My reservations']];
-    return [['home', 'Home'], ['book', 'Book'], ['shop', 'Shop'], ['login', 'Sign in']];
+    return [['home', 'Home'], ['book', 'Courts'], ['#features', 'Features'], ['#how', 'How it works'], ['shop', 'Shop']];
   }
-  const ICON_OF = { home: 'home', book: 'book', shop: 'shop', cart: 'cart', mine: 'mine', admin: 'admin', login: 'signin' };
+  const ICON_OF = { home: 'home', book: 'book', shop: 'shop', cart: 'cart', mine: 'mine', admin: 'admin', login: 'signin', '#features': 'features', '#how': 'how' };
+  // One wording everywhere: "Sign in" for existing accounts, "Sign up" for new ones.
+  const authButtons = cls => `<button type="button" class="btn btn-sm ${cls}" data-action="view" data-view="login">Sign in</button><button type="button" class="btn btn-sm btn-primary ${cls}" data-action="view" data-view="signup">Sign up</button>`;
   function renderChrome() {
     const items = navItems(), nav = $('#mainnav');
-    nav.innerHTML = '<span class="nav-ind" aria-hidden="true"></span>' + items.map(([v, l]) =>
-      `<button type="button" data-action="view" data-view="${v}">${icon(ICON_OF[v])}${l}${v === 'cart' ? '<b class="cart-count" data-cart-count hidden>0</b>' : ''}</button>`).join('');
+    nav.innerHTML = '<span class="nav-ind" aria-hidden="true"></span>' + items.map(([v, l]) => (v[0] === '#'
+      ? `<button type="button" data-action="section" data-section="${v.slice(1)}">${icon(ICON_OF[v])}${l}</button>`
+      : `<button type="button" data-action="view" data-view="${v}">${icon(ICON_OF[v])}${l}${v === 'cart' ? '<b class="cart-count" data-cart-count hidden>0</b>' : ''}</button>`)).join('') +
+      // Phones: the sign-in buttons sit at the bottom of the menu.
+      (me() ? '' : `<div class="nav-auth">${authButtons('')}</div>`);
     const u = me(), unread = unreadCount();
     $('#tools').innerHTML = (u ? `<button type="button" class="opt-btn tool-bell" data-action="notif" aria-expanded="false" aria-controls="notif" aria-label="Notifications${unread ? ', ' + unread + ' unread' : ''}">${icon('bell')}<span>Alerts</span>${unread ? `<b class="cart-count">${unread}</b>` : ''}</button>` : '') +
       `<button type="button" class="opt-btn" data-action="options" aria-expanded="false" aria-controls="opts">${icon(u ? 'user' : 'opts')}<span>${u ? esc(u.firstName) : 'Options'}</span></button>` +
+      (u ? '' : `<span class="top-auth">${authButtons('')}</span>`) +
       // Phones only (CSS): opens the same #mainnav as a dropdown under the top bar.
       `<button type="button" class="opt-btn nav-toggle" data-action="menu" aria-expanded="${menuOpen()}" aria-controls="mainnav" aria-label="Menu">${icon(menuOpen() ? 'close' : 'menu')}<span>Menu</span>${isPlayer() ? '<b class="cart-count" data-cart-count hidden>0</b>' : ''}</button>`;
     $('#modeNote').textContent = MODE === 'demo' ? 'Demo mode: data is stored in this browser only' : 'Connected to the Athletica server (data/db.json)';
@@ -214,6 +223,16 @@
       if (b.dataset.view === navView) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
     });
   }
+  function goSection(id) {
+    if (S.view !== 'home') { S.pendingSection = id; go('home'); return; }
+    closePanels(); setMenu(false);
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.scrollIntoView({ behavior: reduceMotion() ? 'auto' : 'smooth', block: 'start' });
+    const h = el.querySelector('h2');
+    if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); }
+  }
+
   /* ---------- Phone menu: the main nav as a dropdown under the top bar ---------- */
   const menuOpen = () => $('#top').classList.contains('menu-open');
   function setMenu(open, refocus) {
@@ -244,7 +263,7 @@
       ${u ? `<div class="acct-card"><strong>${esc(u.firstName + ' ' + u.lastName)}</strong><span>${esc(u.username)} · ${u.role === 'ADMIN' ? 'Front desk' : 'Player'}</span></div>
         <div class="acct-actions">${u.role === 'USER' ? '<button type="button" class="btn btn-sm" data-action="view" data-view="profile">Profile</button>' : '<button type="button" class="btn btn-sm" data-action="view" data-view="admin">Front desk</button>'}
           <button type="button" class="btn btn-sm btn-ghost" data-action="logout">Sign out</button></div>`
-        : '<div class="acct-actions"><button type="button" class="btn btn-sm btn-primary" data-action="view" data-view="login">Sign in</button><button type="button" class="btn btn-sm" data-action="view" data-view="signup">Create account</button></div>'}
+        : `<div class="acct-actions">${authButtons('')}</div>`}
       <fieldset class="opt-group"><legend>Appearance</legend>
         <div class="seg">${['system', 'light', 'dark'].map(k => `<button type="button" data-action="theme" data-mode="${k}" aria-pressed="${m === k}">${k[0].toUpperCase() + k.slice(1)}</button>`).join('')}</div>
         <p class="hint">${desc}</p>
@@ -431,10 +450,7 @@
               <span class="ln"><span class="red" style="--i:2">forward.</span></span>
             </h1>
             <p class="lede">Reserve a court, lane, or field at Manggahan in under a minute. Watch live availability, pay a small deposit to lock it in, and show your code at the desk.</p>
-            <div class="actions">
-              <button type="button" class="btn btn-primary magnetic" data-action="view" data-view="${isAdmin() ? 'admin' : 'book'}">${isAdmin() ? 'Open front desk' : 'Book a slot'} ${arrow}</button>
-              <button type="button" class="btn magnetic" data-action="sc-jump" data-i="0">Explore sports</button>
-            </div>
+            <div class="actions">${heroActions(arrow)}</div>
           </div>
           <div class="widgets">
             <div class="widget w-clock" style="--i:0"><p class="hud">Local time</p><strong id="clock">${c.time}</strong><span id="clockDate">${c.date}</span></div>
@@ -448,7 +464,8 @@
         <div class="hero-stats">${stats}</div>
       </section>
       ${showcaseHTML()}
-      <section class="wrap sec" aria-labelledby="how-h">
+      ${featuresHTML()}
+      <section class="wrap sec" id="how" aria-labelledby="how-h">
         <div class="sec-head reveal">
           <div><p class="hud"><span class="tick"></span>How it works</p><h2 id="how-h">Four steps<br>to tip-off.</h2></div>
           <p>No calls and no queue at the desk. Your reservation code is all the staff need.</p>
@@ -469,10 +486,35 @@
       ${fuelHTML()}
       <section class="wrap cta-wrap" aria-labelledby="cta-h">
         <div class="cta reveal">
-          <div><p class="hud"><span class="tick"></span>Open daily, ${fmtHour(s.openHour)} to ${fmtHour(s.closeHour)}</p><h2 id="cta-h">Play hard. Move forward.</h2></div>
-          <button type="button" class="btn btn-primary magnetic" data-action="view" data-view="${isAdmin() ? 'admin' : 'book'}">${isAdmin() ? 'Open front desk' : 'Book a slot'} ${arrow}</button>
+          <div><p class="hud"><span class="tick"></span>Open daily, ${fmtHour(s.openHour)} to ${fmtHour(s.closeHour)}</p><h2 id="cta-h">${me() ? 'Play hard. Move forward.' : 'Ready for your next game?'}</h2></div>
+          <div class="cta-actions">${heroActions(arrow)}</div>
         </div>
       </section>`;
+  }
+
+  // Visitors: browse courts freely, or sign up. Players book; the front desk opens its dashboard.
+  function heroActions(arrow) {
+    if (isAdmin()) return `<button type="button" class="btn btn-primary magnetic" data-action="view" data-view="admin">Open front desk ${arrow}</button>`;
+    if (me()) return `<button type="button" class="btn btn-primary magnetic" data-action="view" data-view="book">Book a slot ${arrow}</button>
+      <button type="button" class="btn magnetic" data-action="view" data-view="mine">My reservations</button>`;
+    return `<button type="button" class="btn magnetic" data-action="view" data-view="book">Explore courts ${arrow}</button>
+      <button type="button" class="btn btn-primary magnetic" data-action="view" data-view="signup">Sign up</button>`;
+  }
+  function featuresHTML() {
+    const s = V.settings;
+    const items = [
+      ['book', 'Live availability', 'Every court and hour for the next ' + s.bookingWindowDays + ' days, updated as people book. Held and booked hours are marked, so you never guess.'],
+      ['features', 'See the court first', 'Each court is a 3D card with its price and open hours. Pick one to see its surface, size and times.'],
+      ['clock', s.reservationHoldMinutes + '-minute hold', 'Choose up to ' + s.maxHoursPerBooking + ' back-to-back hours and the slot is yours while you pay the ' + s.depositPercentage + '% deposit.'],
+      ['shop', 'Shop add-ons', 'Add drinks, snacks and gear to your booking and pick them up at the desk with your code.'],
+      ['bell', 'Alerts that matter', 'Get notified when your payment is verified, when a hold expires, and when a refund moves.'],
+      ['mine', 'Everything in one place', 'Your bookings, receipts, cancellations and refund status live in My reservations.']
+    ];
+    return `<section class="wrap sec" id="features" aria-labelledby="feat-h">
+      <div class="sec-head reveal"><div><p class="hud"><span class="tick"></span>Features</p><h2 id="feat-h">Built for<br>game day.</h2></div>
+        <p>From the first look at a court to the code you show at the desk.</p></div>
+      <div class="feats">${items.map(([ic, h, t]) => `<div class="feat reveal"><span class="feat-ic" aria-hidden="true">${icon(ICON[ic] ? ic : 'book')}</span><h3>${esc(h)}</h3><p>${esc(t)}</p></div>`).join('')}</div>
+    </section>`;
   }
 
   /* ---------- Pinned showcase ---------- */
@@ -1532,7 +1574,7 @@
           <button type="button" class="linkbtn" data-action="pw-toggle" aria-pressed="${!!L.show}">${L.show ? 'Hide' : 'Show'}<span class="sr-only"> password</span></button></div></div>
         <button type="submit" class="btn btn-primary block"${L.busy ? ' disabled aria-busy="true"' : ''}>${L.busy ? '<span class="spin" aria-hidden="true"></span>Signing in' : 'Sign in'}</button>
         <div class="auth-links"><button type="button" class="linkbtn" data-action="to-reset">Forgot password?</button>
-          <span>New here? <button type="button" class="linkbtn strong" data-action="auth-go" data-view="signup">Create an account</button></span></div>
+          <span>New here? <button type="button" class="linkbtn strong" data-action="auth-go" data-view="signup">Sign up</button></span></div>
       </div></form>
       <aside class="auth-side">
         <p class="hud"><span class="tick"></span>${esc(s.facilityName)}</p>
@@ -1566,7 +1608,7 @@
     if (me()) return signedInNote();
     const F = S.signup;
     return `<div class="auth">
-      <form id="signupForm" class="sheet auth-form" novalidate aria-labelledby="su-h"><h2 id="su-h">Create a player account</h2><div class="sheet-in">
+      <form id="signupForm" class="sheet auth-form" novalidate aria-labelledby="su-h"><h2 id="su-h">Sign up</h2><div class="sheet-in">
         ${F.err.form ? `<p class="notice err" id="err-signup-form" tabindex="-1" role="alert">${esc(F.err.form)}</p>` : ''}
         <div class="two-col">${authField('signup', 'firstName', 'First name', 'text', 'given-name')}${authField('signup', 'lastName', 'Last name', 'text', 'family-name')}</div>
         ${authField('signup', 'username', 'Username', 'text', 'username', { hint: '3 to 30 lowercase letters, numbers, dots, dashes or underscores. You sign in with this.', extra: ' autocapitalize="none" spellcheck="false"' })}
@@ -1574,7 +1616,7 @@
         ${authField('signup', 'phone', 'Mobile number', 'tel', 'tel', { extra: ' inputmode="numeric" placeholder="09XX XXX XXXX"' })}
         ${authField('signup', 'password', 'Password', 'password', 'new-password', { pw: true, toggle: true, rules: () => S.signup.username })}
         ${authField('signup', 'confirmPassword', 'Confirm password', 'password', 'new-password', { pw: true })}
-        <button type="submit" class="btn btn-primary block"${F.busy ? ' disabled aria-busy="true"' : ''}>${F.busy ? '<span class="spin" aria-hidden="true"></span>Creating account' : 'Create account'}</button>
+        <button type="submit" class="btn btn-primary block"${F.busy ? ' disabled aria-busy="true"' : ''}>${F.busy ? '<span class="spin" aria-hidden="true"></span>Signing up' : 'Sign up'}</button>
         <div class="auth-links"><span>Already have an account? <button type="button" class="linkbtn strong" data-action="auth-go" data-view="login">Sign in</button></span></div>
       </div></form>
       <aside class="auth-side"><p class="hud"><span class="tick"></span>${esc(V.settings.facilityName)}</p>
@@ -1628,7 +1670,7 @@
     const name = me().firstName;
     S.signup = blankSignup();
     renderChrome();
-    const next = S.next && S.next !== 'admin' ? S.next : 'book';
+    const next = S.next && S.next !== 'admin' ? S.next : 'mine';
     S.next = null;
     go(next);
     toast('Welcome, ' + name + '. Your account is ready.');
@@ -2075,7 +2117,7 @@
 
   /* ---------- Shell ---------- */
   const VIEWS = { home: renderHome, book: renderBook, checkout: renderCheckout, shop: renderShop, cart: renderCart, mine: renderMine, profile: renderProfile, login: renderLogin, signup: renderSignup, reset: renderReset, admin: renderAdmin };
-  const TITLES = { home: '', book: 'Book a slot', checkout: 'Checkout', shop: 'Athlete shop', cart: 'Cart', mine: 'My reservations', profile: 'Profile', login: 'Sign in', signup: 'Create account', reset: 'Reset password', admin: 'Front desk' };
+  const TITLES = { home: '', book: 'Book a slot', checkout: 'Checkout', shop: 'Athlete shop', cart: 'Cart', mine: 'My reservations', profile: 'Profile', login: 'Sign in', signup: 'Sign up', reset: 'Reset password', admin: 'Front desk' };
   let toastTimer = null, barObserver = null;
   function toast(msg) {
     const el = $('#toast');
@@ -2166,6 +2208,11 @@
       S.focusSel = S.nextFocus || 'h1'; S.nextFocus = null;
       render();
       window.scrollTo(0, 0);
+      if (S.pendingSection) {
+        const el = document.getElementById(S.pendingSection), h = el && el.querySelector('h2');
+        S.pendingSection = null;
+        if (el) { el.scrollIntoView({ block: 'start' }); if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); } }
+      }
       try {
         if (fromHistory || location.hash === '#' + S.view) history.replaceState(null, '', '#' + S.view);
         else history.pushState(null, '', '#' + S.view);
@@ -2221,7 +2268,7 @@
     if (!t || !V) return;
     const d = t.dataset;
     switch (d.action) {
-      case 'view': if (d.view === 'login') { S.next = null; S.loginNotice = ''; } go(d.view); break;
+      case 'view': if (d.view === 'login' || d.view === 'signup') { S.next = null; S.loginNotice = ''; } go(d.view); break;
       case 'to-login': S.next = 'book'; S.loginNotice = 'Sign in to reserve this slot. Your selection is kept.'; go('login'); break;
       case 'sport':
         S.sport = d.sport; clearSel(); delete S.errors.slot;
@@ -2250,6 +2297,7 @@
       case 'close': closeDlg(); S.rx = null; if (S.stale) refresh(true); break;
       case 'keep': S.pending = null; if (!$('#opts').hidden) togglePanel('opts', true); else render(); break;
       case 'menu': setMenu(!menuOpen()); break;
+      case 'section': goSection(d.section); break;
       case 'options': togglePanel('opts'); break;
       case 'notif': togglePanel('notif'); break;
       case 'theme': applyTheme(d.mode, true); togglePanel('opts', true); { const f = $(`#opts [data-mode="${d.mode}"]`); if (f) f.focus(); } break;
@@ -2470,6 +2518,7 @@
       restoreSelection();
       const want = location.hash.slice(1);
       if (VIEWS[want]) S.view = want;
+      else if (!want && me()) S.view = isAdmin() ? 'admin' : 'mine';
       if (S.view === 'checkout' && !S.co) S.view = isPlayer() ? 'mine' : 'home';
       if (S.view === 'book') ensureOpenDate();
       renderChrome();

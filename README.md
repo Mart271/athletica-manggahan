@@ -55,6 +55,8 @@ Book → choose a sport and date → choose a court from the 3D court cards (eac
 
 The navigation sits in the top bar at every width; on phones it folds into a Menu button.
 
+Visitors see Home, Courts, Features, How it works and Shop, plus **Sign in** and **Sign up** (on phones, at the bottom of the menu). Courts can be browsed without an account; booking asks you to sign in and keeps your selection. After signing in or up, players land on My reservations and front desk staff on the Front desk. Opening the site root while signed in goes straight there.
+
 ## How the rules are enforced
 
 - Requests are applied one at a time and each writes the whole database atomically, so checking a slot and reserving it can't interleave. Two players racing for the same hour: one gets it, the other is told it's taken.
