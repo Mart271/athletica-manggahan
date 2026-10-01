@@ -127,6 +127,8 @@
   }
   const me = () => (V && V.me) || null;
   const isAdmin = () => !!(me() && me().role === 'ADMIN');
+  // Each role's own home: the front desk's is Floor view, everyone else's is the landing page.
+  const homeView = () => (isAdmin() ? 'desk' : 'home');
   const isPlayer = () => !!(me() && me().role === 'USER');
   function blankSignup() { return { firstName: '', lastName: '', username: '', email: '', phone: '', password: '', confirmPassword: '', err: {}, busy: false, show: false }; }
   function blankReset() { return { step: 'request', identifier: '', code: '', newPassword: '', confirmPassword: '', err: {}, busy: false, show: false, message: '', devMail: null, sentAt: 0 }; }
@@ -1608,7 +1610,7 @@
     return `<div class="page-head"><p class="hud"><span class="tick"></span>Access</p><h1 class="page-title" tabindex="-1">Not available</h1><p>${esc(msg)}</p></div>
       <div class="empty"><h2>${u ? `You're signed in as ${esc(u.username)} (${u.role === 'ADMIN' ? 'front desk' : 'player'}).` : 'You are not signed in.'}</h2>
         <p>${u ? 'Switch accounts to continue, or head back home.' : 'Sign in with the right account to continue.'}</p>
-        ${u ? btn('logout', 'Sign out', '') + ' ' + btn('view', 'Go home', 'btn-primary', { view: 'home' }) : btn('view', 'Sign in', 'btn-primary', { view: 'login' })}</div>`;
+        ${u ? btn('logout', 'Sign out', '') + ' ' + btn('view', 'Go home', 'btn-primary', { view: homeView() }) : btn('view', 'Sign in', 'btn-primary', { view: 'login' })}</div>`;
   }
   function renderLogin() {
     const L = S.login, s = V.settings;
@@ -2494,6 +2496,7 @@
       case 'keep': S.pending = null; if (!$('#opts').hidden) togglePanel('opts', true); else render(); break;
       case 'menu': setMenu(!menuOpen()); break;
       case 'section': goSection(d.section); break;
+      case 'home': go(homeView()); break;
       case 'desk-court': S.deskCourt = d.court; S.deskTab = 'today'; S.pending = null; S.focusSel = '#dp-h'; render(); break;
       case 'desk-close': { const id = S.deskCourt; S.deskCourt = null; S.pending = null; S.focusSel = `[data-action="desk-court"][data-court="${id}"]`; render(); break; }
       case 'desk-tab': S.deskTab = d.tab; S.pending = null; S.focusSel = `[data-action="desk-tab"][data-tab="${d.tab}"]`; render(); break;
