@@ -101,7 +101,7 @@
   const IX = {};
   const S = {
     view: 'home', sport: 'basketball', date: today(), adminDate: today(),
-    sel: { court: null, hours: [] }, notice: '', errors: {},
+    sel: { court: null, hours: [] }, notice: '', errors: {}, deskHour: null, deskCourt: null, deskTab: 'today', rate: null,
     form: { type: 'INDIVIDUAL', phone: '', teamName: '', headcount: '' },
     co: null, drafts: { res: null, cart: null }, cx: null, focusKey: null, focusSel: null, countUp: true, pending: null, next: null, loginNotice: '',
     login: { username: '', password: '', err: '', busy: false }, profile: null, profileErr: {},
@@ -182,6 +182,7 @@
     signin: '<path d="M14 4h6v16h-6M3 12h12M11 8l4 4-4 4"/>',
     menu: '<path d="M3 6h18M3 12h18M3 18h18"/>',
     clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    desk: '<path d="M3 8l9-5 9 5-9 5z"/><path d="M3 13l9 5 9-5"/>',
     features: '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>',
     how: '<path d="M9 6h12M9 12h12M9 18h12"/><rect x="3" y="4" width="3" height="4"/><rect x="3" y="10" width="3" height="4"/><rect x="3" y="16" width="3" height="4"/>',
     close: '<path d="M5 5l14 14M19 5L5 19"/>'
@@ -190,11 +191,11 @@
 
   /* ---------- Chrome: navigation depends on who is signed in ---------- */
   function navItems() {
-    if (isAdmin()) return [['home', 'Home'], ['book', 'Availability'], ['admin', 'Front desk'], ['shop', 'Shop']];
+    if (isAdmin()) return [['desk', 'Floor view'], ['book', 'Availability'], ['admin', 'Front desk'], ['shop', 'Shop']];
     if (isPlayer()) return [['home', 'Home'], ['book', 'Book'], ['shop', 'Shop'], ['cart', 'Cart'], ['mine', 'My reservations']];
     return [['home', 'Home'], ['book', 'Courts'], ['#features', 'Features'], ['#how', 'How it works'], ['shop', 'Shop']];
   }
-  const ICON_OF = { home: 'home', book: 'book', shop: 'shop', cart: 'cart', mine: 'mine', admin: 'admin', login: 'signin', '#features': 'features', '#how': 'how' };
+  const ICON_OF = { desk: 'desk', home: 'home', book: 'book', shop: 'shop', cart: 'cart', mine: 'mine', admin: 'admin', login: 'signin', '#features': 'features', '#how': 'how' };
   // One wording everywhere: "Sign in" for existing accounts, "Sign up" for new ones.
   const authButtons = cls => `<button type="button" class="btn btn-sm ${cls}" data-action="view" data-view="login">Sign in</button><button type="button" class="btn btn-sm btn-primary ${cls}" data-action="view" data-view="signup">Sign up</button>`;
   function renderChrome() {
@@ -494,7 +495,8 @@
 
   // Visitors: browse courts freely, or sign up. Players book; the front desk opens its dashboard.
   function heroActions(arrow) {
-    if (isAdmin()) return `<button type="button" class="btn btn-primary magnetic" data-action="view" data-view="admin">Open front desk ${arrow}</button>`;
+    if (isAdmin()) return `<button type="button" class="btn btn-primary magnetic" data-action="view" data-view="desk">Open floor view ${arrow}</button>
+      <button type="button" class="btn magnetic" data-action="view" data-view="admin">Front desk</button>`;
     if (me()) return `<button type="button" class="btn btn-primary magnetic" data-action="view" data-view="book">Book a slot ${arrow}</button>
       <button type="button" class="btn magnetic" data-action="view" data-view="mine">My reservations</button>`;
     return `<button type="button" class="btn magnetic" data-action="view" data-view="book">Explore courts ${arrow}</button>
@@ -677,23 +679,33 @@
     basketball: '<span class="c3d-board" style="left:4.5%"></span><span class="c3d-board" style="left:95.5%"></span>',
     futsal: '<span class="c3d-goal" style="left:4%"></span><span class="c3d-goal" style="left:96%"></span>'
   };
-  function court3D(c, i, n) {
+  function court3D(c, i, n, extra) {
     const sid = c.sportId;
     return `<span class="c3d-stage" aria-hidden="true"><span class="c3d" style="--edge:${EDGE[sid] || '#555'}">
       <span class="c3d-ground"></span>
       <span class="c3d-body"><span class="c3d-floor"><svg viewBox="0 0 200 120" preserveAspectRatio="none">${(FLOOR[sid] || FLOOR.basketball)(i, n)}</svg></span>
-        <span class="c3d-edge c3d-edge-x"></span><span class="c3d-edge c3d-edge-y"></span>${UPRIGHT[sid] || ''}</span>
+        <span class="c3d-edge c3d-edge-x"></span><span class="c3d-edge c3d-edge-y"></span>${UPRIGHT[sid] || ''}${extra || ''}</span>
     </span></span>`;
   }
+  // "★ 4.2 (9)", or "New" until a court has enough ratings to be fair.
+  const ratingText = c => (c.ratingAverage != null ? `★ ${c.ratingAverage.toFixed(1)} (${c.ratingCount})` : 'New');
+  const ratingSaid = c => (c.ratingAverage != null ? `rated ${c.ratingAverage.toFixed(1)} out of 5 from ${plural(c.ratingCount, 'rating')}` : 'new, not enough ratings yet');
+  const starRow = n => `<span class="stars" aria-hidden="true">${'★'.repeat(n)}<span class="stars-off">${'★'.repeat(5 - n)}</span></span><span class="sr-only">${n} out of 5 stars</span>`;
   function courtCard(c, i, n) {
     const sel = S.sel.court === c.id, open = openHoursOf(c, S.date), closed = !courtOpen(c);
     const avail = closed ? `<span class="cc-avail closed">${c.status === 'MAINTENANCE' ? 'Closed for maintenance' : 'Unavailable'}</span>`
       : open ? `<span class="cc-avail ok">${plural(open, 'open hour')}</span>` : '<span class="cc-avail full">Fully booked</span>';
     const said = closed ? (c.status === 'MAINTENANCE' ? 'closed for maintenance' : 'unavailable') : open ? plural(open, 'open hour') + ' on ' + fmtDate(S.date) : 'fully booked on ' + fmtDate(S.date);
-    return `<button type="button" class="court-card${closed ? ' is-closed' : ''}" data-action="court" data-court="${c.id}" aria-pressed="${sel}"${closed ? ' aria-disabled="true"' : ''} aria-label="${esc(c.name)}, ${peso(c.hourlyRate)} per hour, ${esc(said)}">
+    return `<button type="button" class="court-card${closed ? ' is-closed' : ''}" data-action="court" data-court="${c.id}" aria-pressed="${sel}"${closed ? ' aria-disabled="true"' : ''} aria-label="${esc(c.name)}, ${peso(c.hourlyRate)} per hour, ${ratingSaid(c)}, ${esc(said)}">
       ${court3D(c, i, n)}<span class="cc-tag" aria-hidden="true">${sel ? '✓ Selected' : closed ? 'Closed' : 'Select'}</span>
-      <span class="cc-body"><span class="cc-name">${esc(c.name)}</span><span class="cc-rate">${peso(c.hourlyRate)} / hour</span>${avail}</span>
+      <span class="cc-body"><span class="cc-name">${esc(c.name)}</span><span class="cc-rate">${peso(c.hourlyRate)} / hour<span class="cc-stars${c.ratingAverage == null ? ' new' : ''}">${ratingText(c)}</span></span>${avail}</span>
     </button>`;
+  }
+  function reviewsHTML(c) {
+    const list = (V.courtReviews || {})[c.id] || [];
+    if (!list.length) return '';
+    return `<section class="court-reviews" aria-labelledby="rev-h"><h2 id="rev-h">What players say</h2><ul>${list.map(x =>
+      `<li>${starRow(x.stars)}<p>${esc(x.comment)}</p><span class="muted">${esc(x.author)} · ${esc(fmtDate(x.date))}</span></li>`).join('')}</ul></section>`;
   }
   function pickCourt(id) {
     const c = IX.court[id], s = c && IX.sport[c.sportId];
@@ -764,7 +776,8 @@
       grid = `<div class="pick-empty"><span class="pe-arrow" aria-hidden="true">↑</span><p><strong>No ${esc(s.unit)} selected yet.</strong> Choose one above to see its open times, price and details.</p></div>`;
     } else if (picker) {
       grid = `<dl class="court-facts"><div><dt>Surface</dt><dd>${esc(s.surface)}</dd></div><div><dt>Size</dt><dd>${esc(s.size)}</dd></div>
-          <div><dt>Players</dt><dd>Up to ${s.maxPlayers}</dd></div><div><dt>Rate</dt><dd>${peso(pc.hourlyRate)} / hour</dd></div><div><dt>Deposit</dt><dd>${depositPct(pc)}% to confirm</dd></div></dl>
+          <div><dt>Players</dt><dd>Up to ${s.maxPlayers}</dd></div><div><dt>Rate</dt><dd>${peso(pc.hourlyRate)} / hour</dd></div><div><dt>Deposit</dt><dd>${depositPct(pc)}% to confirm</dd></div>
+          <div><dt>Rating</dt><dd>${pc.ratingAverage != null ? `★ ${pc.ratingAverage.toFixed(1)} · ${plural(pc.ratingCount, 'rating')}` : `New · ${plural(pc.ratingCount, 'rating')}`}</dd></div></dl>
         <div class="hour-grid times" role="group" aria-label="${esc(pc.name)} hours">${hoursList().map(h => cellHTML(pc, h, true)).join('')}</div>`;
     } else if (narrow) grid = courts.map(c => `<div class="fac-block"><h3>${facName(c)}</h3><div class="hour-grid">${hoursList().map(h => cellHTML(c, h)).join('')}</div></div>`).join('');
     else {
@@ -834,6 +847,7 @@
           </div>`}</div>
         <div role="status" aria-live="polite">${S.notice ? `<p class="notice">${esc(S.notice)}</p>` : ''}</div>
         ${S.errors.slot ? `<p class="notice err" id="err-slot" tabindex="-1">${esc(S.errors.slot)}</p>` : ''}
+        ${pc ? reviewsHTML(pc) : ''}
       </div>
       <aside class="panel" aria-labelledby="sum-h"><h2 id="sum-h">Your reservation</h2>${panel}</aside></div>
       ${has && !isAdmin() ? `<div class="bar-spacer"></div><div class="actionbar" id="actionbar">
@@ -1181,6 +1195,7 @@
     if (r.status === 'CONFIRMED' || r.status === 'CHECKED_IN') acts.push(btn('ticket', 'Show pass', '', { id: r.id }));
     if (p && ['PAID', 'REFUNDED', 'PARTIALLY_REFUNDED'].includes(p.status)) acts.push(btn('receipt', 'Receipt', 'btn-ghost', { id: r.id }));
     if (r.canCancel) acts.push(btn('cancel', 'Cancel booking', 'btn-ghost', { id: r.id }));
+    if (r.canRate) acts.push(btn('rate', r.rating ? 'Edit rating' : 'Rate this court', r.rating ? 'btn-ghost' : 'btn-primary', { id: r.id }));
     let note = '';
     if (r.status === 'PENDING_PAYMENT' && r.paymentStatus === 'UNPAID') note = `Slot held for <strong data-until="${esc(r.holdExpiresAt)}">${mmss(msUntil(r.holdExpiresAt))}</strong>. Pay the ${peso(r.depositRequired)} deposit to keep it.`;
     else if (r.status === 'PENDING_PAYMENT' && r.paymentStatus === 'PENDING') note = `Pay ${peso(p.amount)} at the front desk by ${fmtClock(r.holdExpiresAt)}. The slot stays pending until staff verify the deposit.`;
@@ -1197,6 +1212,7 @@
         <p>${fmtRange(r.start, r.end)} · ${esc(PLAYER_TYPES[r.playerType].label)} · Court ${peso(r.totalPrice)}${r.addonTotal ? ' · Snacks ' + peso(r.addonTotal) : ''}</p>
         <p>Code <span class="ref">${esc(r.id)}</span></p>
         ${note ? `<p class="bk-note">${note}</p>` : ''}
+        ${r.rating ? `<p class="bk-rated">You rated this ${starRow(r.rating.stars)}${r.rating.hidden ? ' · hidden by the front desk' : r.canRate ? ` · you can edit it until ${esc(fmtDate(r.rating.editableUntil.slice(0, 10)))}` : ''}</p>` : ''}
       </div>
       <div class="bk-actions">${acts.join('')}</div></article>`;
   }
@@ -1213,6 +1229,39 @@
     return head + '<h2 class="sub-h first">Upcoming</h2>' +
       (upcoming.length ? `<div class="bk-list">${upcoming.map(reservationCard).join('')}</div>` : `<div class="empty"><p>No upcoming reservations.</p>${btn('view', 'Find a court', 'btn-primary', { view: 'book' })}</div>`) +
       (rest.length ? `<h2 class="sub-h">Past and cancelled</h2><div class="bk-list">${rest.map(reservationCard).join('')}</div>` : '') + orders;
+  }
+
+  /* ---------- Rating a court ---------- */
+  function openRate(id) {
+    const r = IX.res[id];
+    if (!r || !r.canRate) return;
+    S.rate = { id, stars: r.rating ? r.rating.stars : 0, comment: r.rating ? r.rating.comment : '', err: {}, busy: false };
+    renderRate();
+  }
+  function renderRate() {
+    const R = S.rate, r = IX.res[R.id];
+    const opts = [1, 2, 3, 4, 5].map(n => `<label class="rate-star${n <= R.stars ? ' on' : ''}"><input type="radio" name="stars" value="${n}"${n === R.stars ? ' checked' : ''} class="sr-only"${R.err.stars ? ' aria-describedby="err-stars"' : ''}><span aria-hidden="true">★</span><span class="sr-only">${plural(n, 'star')}</span></label>`).join('');
+    openDlg(`<form id="rateForm" class="rate-in" novalidate><h2 id="dlg-title">Rate ${esc(courtLabel(r.courtId))}</h2>
+      <p class="muted">${esc(fmtLong(r.date))}, ${fmtRange(r.start, r.end)}</p>
+      <fieldset class="rate-fs"><legend>Your rating</legend><div class="rate-stars" role="radiogroup" aria-label="Stars">${opts}</div>
+        ${R.err.stars ? `<p class="ferr" id="err-stars">${esc(R.err.stars)}</p>` : ''}</fieldset>
+      <div class="field"><label for="rate-comment">Comment <span class="muted">(optional)</span></label>
+        <textarea id="rate-comment" name="comment" rows="3" maxlength="300"${R.err.comment ? ' aria-invalid="true" aria-describedby="err-rate-comment"' : ''}>${esc(R.comment)}</textarea>
+        <p class="hint" id="rate-count">${R.comment.length} / 300</p>${R.err.comment ? `<p class="ferr" id="err-rate-comment">${esc(R.err.comment)}</p>` : ''}</div>
+      ${R.err.form ? `<p class="notice err" role="alert">${esc(R.err.form)}</p>` : ''}
+      <div class="acct-actions"><button type="submit" class="btn btn-primary"${R.busy ? ' disabled aria-busy="true"' : ''}>${r.rating ? 'Save rating' : 'Submit rating'}</button>${btn('close', 'Cancel', 'btn-ghost')}</div></form>`, 'rate-dlg');
+    const f = $('#rateForm input[name=stars]:checked') || $('#rateForm input[name=stars]');
+    if (f) f.focus();
+  }
+  async function submitRate() {
+    const R = S.rate;
+    if (!R.stars) { R.err = { stars: 'Choose from 1 to 5 stars.' }; renderRate(); return; }
+    R.busy = true;
+    const out = await act('rating.submit', { reservationId: R.id, stars: R.stars, comment: R.comment });
+    R.busy = false;
+    if (!out.ok) { R.err = out.error.fields || { form: out.error.message }; renderRate(); return; }
+    closeDlg(); S.rate = null; render();
+    toast('Thanks. Your rating is saved.');
   }
 
   /* ---------- Reservation details ---------- */
@@ -1720,7 +1769,7 @@
     S.login = { username: '', password: '', err: '', busy: false };
     S.loginNotice = '';
     renderChrome();
-    const next = S.next && !(S.next === 'admin' && !isAdmin()) ? S.next : isAdmin() ? 'admin' : S.sel.court ? 'book' : 'mine';
+    const next = S.next && !(['admin', 'desk'].includes(S.next) && !isAdmin()) ? S.next : isAdmin() ? 'desk' : S.sel.court ? 'book' : 'mine';
     S.next = null;
     go(next);
     toast('Signed in as ' + me().firstName + ' ' + me().lastName + '.');
@@ -1777,6 +1826,152 @@
   }
   const TABS = [['schedule', 'Schedule'], ['payments', 'Payments'], ['cancellations', 'Cancellations'], ['orders', 'Shop orders'], ['inventory', 'Inventory'],
     ['courts', 'Courts'], ['customers', 'Customers'], ['reports', 'Reports'], ['activity', 'Activity log'], ['settings', 'Settings']];
+  /* ---------- Front desk: live 3D floor view ---------- */
+  const DESK_ON = ['PENDING_PAYMENT', 'PAYMENT_VERIFICATION', 'CONFIRMED', 'CHECKED_IN', 'COMPLETED'];
+  const DESK_ST = { use: ['In use', '●'], due: ['Payment due', '!'], soon: ['Starting soon', '▲'], free: ['Free', '○'], closed: ['Closed', '✕'] };
+  const nowMins = () => { const d = new Date(Date.now() + 480 * 60000); return d.getUTCHours() * 60 + d.getUTCMinutes(); };
+  const deskMins = () => (S.deskHour == null ? nowMins() : S.deskHour * 60);
+  const whoOf = r => r.teamName || r.customerName;
+  const fmtMins = m => (m >= 60 ? Math.floor(m / 60) + ' h ' + (m % 60 ? (m % 60) + ' min' : '') : m + ' min').trim();
+  function deskBookings(c) { return V.reservations.filter(r => r.courtId === c.id && r.date === today() && DESK_ON.includes(r.status)).sort((a, b) => a.start - b.start); }
+  function deskState(c, mins) {
+    const list = deskBookings(c), cur = list.find(r => r.start * 60 <= mins && mins < r.end * 60), next = list.find(r => r.start * 60 > mins);
+    let k = 'free';
+    if (!courtOpen(c)) k = 'closed';
+    else if (cur) k = ['PENDING_PAYMENT', 'PAYMENT_VERIFICATION'].includes(cur.status) ? 'due' : 'use';
+    else if (next && next.start * 60 - mins <= 60) k = 'soon';
+    return { k, cur, next, list };
+  }
+  // Small upright markers on courts in use: one per player, capped so the court stays readable.
+  const PIN_SPOTS = [[28, 34], [72, 66], [40, 72], [62, 30], [22, 62], [78, 40], [50, 52], [46, 22]];
+  function pinsHTML(c, r, i, n) {
+    const count = Math.min(r.headcount || (r.playerType === 'TEAM' ? 8 : 1), c.sportId === 'swimming' ? 2 : 8);
+    const laneTop = c.sportId === 'swimming' ? (10 + (i + 0.5) * 100 / n) / 120 * 100 : null;
+    return Array.from({ length: count }, (_, k) => {
+      const [x, y] = laneTop != null ? [35 + k * 30, laneTop] : PIN_SPOTS[k];
+      return `<span class="c3d-pin" style="left:${x}%;top:${y}%"></span>`;
+    }).join('');
+  }
+  function deskCard(c, i, n, mins) {
+    const st = deskState(c, mins), cur = st.cur, next = st.next, sport = IX.sport[c.sportId];
+    const live = S.deskHour == null;
+    const left = cur ? cur.end * 60 - mins : 0;
+    const line = cur ? `<b>${esc(whoOf(cur))}</b> · ${fmtRange(cur.start, cur.end)}${live ? ' · ' + fmtMins(left) + ' left' : ''}${cur.status === 'CONFIRMED' && live ? ' · not checked in' : ''}`
+      : st.k === 'closed' ? (c.status === 'MAINTENANCE' ? 'Closed for maintenance' : 'Unavailable') : 'Nobody on court';
+    const nextLine = next ? `Next: ${esc(whoOf(next))} at ${fmtHour(next.start)}${live && st.k === 'soon' ? ' (in ' + fmtMins(next.start * 60 - mins) + ')' : ''}` : 'No more bookings today';
+    const said = `${sport.name} ${c.name}, ${DESK_ST[st.k][0]}${cur ? `, ${whoOf(cur)} until ${fmtHour(cur.end)}` : ''}${next ? `, next booking ${fmtHour(next.start)} ${whoOf(next)}` : ', no more bookings today'}`;
+    return `<button type="button" class="court-card desk-card st-${st.k}" data-action="desk-court" data-court="${c.id}" aria-pressed="${S.deskCourt === c.id}" aria-label="${esc(said)}">
+      ${court3D(c, i, n, cur ? pinsHTML(c, cur, i, n) : '')}
+      <span class="desk-tag st-${st.k}" aria-hidden="true"><b>${DESK_ST[st.k][1]}</b>${DESK_ST[st.k][0]}</span>
+      <span class="cc-body"><span class="cc-name">${esc(c.name)}</span><span class="cc-rate">${esc(sport.name)}<span class="cc-stars${c.ratingAverage == null ? ' new' : ''}">${ratingText(c)}</span></span>
+        <span class="desk-line">${line}</span><span class="desk-next">${nextLine}</span></span>
+    </button>`;
+  }
+  function deskFloorHTML() {
+    const mins = deskMins();
+    return sportsList().map(sp => {
+      const courts = IX.courtsBySport[sp.id] || [];
+      if (!courts.length) return '';
+      return `<section class="desk-sport" aria-labelledby="ds-${sp.id}"><div class="grid-head pick-head"><h2 id="ds-${sp.id}">${esc(sp.name)}</h2><span class="muted">${plural(courts.length, sp.unit)}</span></div>
+        <div class="cc-row desk-row">${courts.map((c, i) => deskCard(c, i, courts.length, mins)).join('')}</div></section>`;
+    }).join('');
+  }
+  function deskStatsHTML() {
+    const mins = deskMins(), n = { use: 0, due: 0, soon: 0, free: 0, closed: 0 };
+    V.courts.forEach(c => { n[deskState(c, mins).k]++; });
+    const tile = (k, label) => `<div class="stat st-${k}"><strong>${n[k]}</strong><span><b aria-hidden="true">${DESK_ST[k][1]}</b> ${label}</span></div>`;
+    return tile('use', S.deskHour == null ? 'In use now' : 'In use') + tile('soon', 'Starting within 60 min') + tile('due', 'Payment due') + tile('free', 'Free') + tile('closed', 'Closed');
+  }
+  function deskTimeLabel() {
+    const s = V.settings;
+    if (S.deskHour != null) return `Showing ${fmtRange(S.deskHour, S.deskHour + 1)}`;
+    const m = nowMins(), h = Math.floor(m / 60);
+    if (h < s.openHour) return `Now · opens at ${fmtHour(s.openHour)}`;
+    if (h >= s.closeHour) return 'Now · closed for the night';
+    return 'Now · live';
+  }
+  function deskPanelHTML() {
+    const c = S.deskCourt && IX.court[S.deskCourt];
+    if (!c) return '<div class="dp-empty"><p><strong>Select a court</strong> to see who is on it, today’s full schedule and its ratings.</p></div>';
+    const sport = IX.sport[c.sportId], st = deskState(c, deskMins()), s = V.settings, mins = deskMins();
+    const head = `<div class="dp-head"><div><p class="hud"><span class="tick"></span>${esc(sport.name)}</p><h2 id="dp-h" tabindex="-1">${esc(c.name)}</h2>
+        <p class="muted">${esc(DESK_ST[st.k][0])} · ${peso(c.hourlyRate)} / hour · ${ratingText(c)}</p></div>
+        <button type="button" class="btn btn-sm btn-ghost" data-action="desk-close">Close<span class="sr-only"> ${esc(c.name)} panel</span></button></div>
+      <div class="seg dp-tabs" role="group" aria-label="Court panel">${[['today', 'Today'], ['ratings', 'Ratings']].map(([k, l]) =>
+        `<button type="button" data-action="desk-tab" data-tab="${k}" aria-pressed="${S.deskTab === k}">${l}</button>`).join('')}</div>`;
+    if (S.deskTab === 'ratings') {
+      const list = (V.ratings || []).filter(x => x.courtId === c.id);
+      const body = list.length ? `<ul class="dp-ratings">${list.map(x => `<li class="${x.hidden ? 'is-hidden' : ''}">
+          <div class="dpr-top">${starRow(x.stars)}<strong>${esc(x.author)}</strong><span class="muted">${esc(fmtDate(x.updatedAt.slice(0, 10)))}</span></div>
+          ${x.comment ? `<p>${esc(x.comment)}</p>` : '<p class="muted">No comment.</p>'}
+          ${x.hidden ? `<p class="dpr-hidden">Hidden: ${esc(x.hiddenReason)}</p>${btn('rating-unhide', 'Show again', '', { id: x.id })}`
+            : S.pending === 'hide:' + x.id ? `<form class="dpr-form" data-hide-form="${x.id}" novalidate><label for="hr-${x.id}">Why hide it?</label>
+                <input id="hr-${x.id}" name="reason" type="text" maxlength="200" placeholder="e.g. offensive language" required>
+                <div class="row-actions"><button type="submit" class="btn btn-sm btn-danger">Hide rating</button>${btn('keep', 'Keep', 'btn-ghost')}</div></form>`
+            : btn('rating-hide-ask', 'Hide', 'btn-ghost', { id: x.id })}</li>`).join('')}</ul>`
+        : '<p class="dp-none">No ratings for this court yet.</p>';
+      return head + `<p class="dp-sum">${c.ratingAverage != null ? `Average ★ ${c.ratingAverage.toFixed(1)} from ${plural(c.ratingCount, 'visible rating')}.` : `Shows as “New” until it has 3 visible ratings (${c.ratingCount} now).`} Hidden ratings don’t count.</p>` + body;
+    }
+    const rows = [];
+    for (let h = s.openHour; h < s.closeHour;) {
+      const b = st.list.find(r => r.start <= h && h < r.end);
+      if (b) {
+        const acts = [btn('details', 'Details', 'btn-ghost', { id: b.id })];
+        if (b.status === 'CONFIRMED') acts.push(btn('checkin', 'Check in', 'btn-primary', { id: b.id }));
+        if (b.status === 'PAYMENT_VERIFICATION') acts.push(btn('desk-review', 'Review payment', '', {}));
+        if (b.status === 'PENDING_PAYMENT' && b.paymentStatus === 'PENDING' && b.payment) acts.push(btn('pay-approve', 'Cash received', 'btn-primary', { id: b.payment.id }));
+        if (b.canCancel) acts.push(btn('cancel', 'Cancel', 'btn-ghost', { id: b.id }));
+        const here = b.start * 60 <= mins && mins < b.end * 60;
+        rows.push(`<li class="dp-slot booked${here ? ' here' : ''}"><span class="dp-time">${fmtHour(b.start)}–${fmtHour(b.end)}${here ? `<em>${S.deskHour == null ? 'Now' : 'Showing'}</em>` : ''}</span>
+          <div><strong>${esc(whoOf(b))}</strong><span class="tag">${b.userId ? 'Online' : 'Walk-in'}</span>
+            <p class="muted">${esc(b.id)}${b.customerPhone ? ' · ' + esc(b.customerPhone) : ''} · ${esc(PLAYER_TYPES[b.playerType].label)}${b.headcount ? ' · ' + plural(b.headcount, 'player') : ''}</p>
+            <div class="cell-badges">${resBadge(b)}${payBadge(b.paymentStatus)}</div><div class="row-actions">${acts.join('')}</div></div></li>`);
+        h = b.end;
+      } else {
+        let e = h + 1;
+        while (e < s.closeHour && !st.list.find(r => r.start <= e && e < r.end)) e++;
+        const here = h * 60 <= mins && mins < e * 60;
+        rows.push(`<li class="dp-slot free${here ? ' here' : ''}"><span class="dp-time">${fmtHour(h)}–${fmtHour(e)}${here ? `<em>${S.deskHour == null ? 'Now' : 'Showing'}</em>` : ''}</span><div><span class="muted">${courtOpen(c) ? 'Free' : 'Closed'}</span></div></li>`);
+        h = e;
+      }
+    }
+    return head + `<ol class="dp-sched" aria-label="${esc(c.name)} schedule for today">${rows.join('')}</ol>`;
+  }
+  function renderDesk() {
+    if (!isAdmin()) return deniedHTML('The floor view is for front desk staff.');
+    const s = V.settings, c = clockParts(), allClosed = V.courts.every(x => !courtOpen(x));
+    const booked = V.reservations.some(r => r.date === today() && DESK_ON.includes(r.status));
+    const h = Math.floor(nowMins() / 60), out = h < s.openHour || h >= s.closeHour;
+    const val = S.deskHour != null ? S.deskHour : Math.min(s.closeHour - 1, Math.max(s.openHour, h));
+    return `<div class="page-head head-row"><div><p class="hud"><span class="tick"></span>Front desk</p><h1 class="page-title" tabindex="-1">Floor view</h1>
+        <p>Who is on every court right now, and who is up next.</p></div>
+        <div class="desk-clock"><strong id="clock">${c.time}</strong><span id="clockDate">${c.date}</span></div></div>
+      ${allClosed ? '<p class="notice err">Every court is closed. Open courts again from Front desk → Courts.</p>' : ''}
+      ${out && S.deskHour == null ? `<p class="notice">${h < s.openHour ? `The facility opens at ${fmtHour(s.openHour)}.` : 'The facility is closed for the night.'} Courts show today’s next or last bookings; drag the timeline to look at any hour.</p>` : ''}
+      ${!booked ? '<p class="notice">No bookings yet today.</p>' : ''}
+      <div class="stats desk-stats" id="deskStats" aria-live="polite">${deskStatsHTML()}</div>
+      <form class="desk-time" id="deskTimeForm" novalidate><label for="deskTime">Timeline</label>
+        <input id="deskTime" type="range" min="${s.openHour}" max="${s.closeHour - 1}" step="1" value="${val}" aria-valuetext="${esc(fmtRange(val, val + 1))}">
+        <output id="deskTimeOut" for="deskTime">${deskTimeLabel()}</output>
+        <button type="button" class="btn btn-sm${S.deskHour == null ? ' btn-primary' : ''}" data-action="desk-now" aria-pressed="${S.deskHour == null}">Now</button></form>
+      <div class="desk${S.deskCourt ? ' has-panel' : ''}">
+        <div class="desk-floor" id="deskFloor">${deskFloorHTML()}</div>
+        <aside class="desk-panel" id="deskPanel" aria-label="Court details">${deskPanelHTML()}</aside>
+      </div>`;
+  }
+  // Timeline and the live minute tick update the floor in place, so the slider keeps working mid-drag.
+  function deskUpdate() {
+    if (S.view !== 'desk' || !V) return;
+    const f = $('#deskFloor'), st = $('#deskStats'), o = $('#deskTimeOut'), pn = $('#deskPanel'), rg = $('#deskTime');
+    if (f) f.innerHTML = deskFloorHTML();
+    if (st) st.innerHTML = deskStatsHTML();
+    if (o) o.textContent = deskTimeLabel();
+    if (rg && S.deskHour != null) rg.setAttribute('aria-valuetext', fmtRange(S.deskHour, S.deskHour + 1));
+    if (pn && !pn.contains(document.activeElement)) pn.innerHTML = deskPanelHTML();
+    const now = $('[data-action="desk-now"]');
+    if (now) { now.classList.toggle('btn-primary', S.deskHour == null); now.setAttribute('aria-pressed', String(S.deskHour == null)); }
+  }
+
   function renderAdmin() {
     if (!isAdmin()) return deniedHTML(me() ? 'The front desk is for staff accounts. Player accounts can’t open it.' : 'Sign in with a front desk account to open the front desk.');
     const n = deskCounts();
@@ -2036,7 +2231,8 @@
     EXPIRE_HOLD: 'Hold expired', SUBMIT_PAYMENT: 'Submitted payment', VERIFY_PAYMENT: 'Verified payment', REJECT_PAYMENT: 'Rejected payment', REQUEST_REUPLOAD: 'Asked for new proof',
     CHECK_IN_USER: 'Checked in', CANCEL_RESERVATION: 'Cancelled reservation', APPROVE_REFUND: 'Approved refund', REJECT_REFUND: 'Denied refund', COMPLETE_REFUND: 'Refund sent',
     PLACE_ORDER: 'Placed order', CANCEL_ORDER: 'Cancelled order', COLLECT_ORDER: 'Order collected', UPDATE_SETTINGS: 'Changed settings', UPDATE_COURT: 'Changed court',
-    UPDATE_STOCK: 'Changed stock', UPDATE_PRODUCT: 'Changed product', REGISTER: 'Created account', PASSWORD_RESET_REQUESTED: 'Asked for reset code', PASSWORD_RESET: 'Reset password'
+    UPDATE_STOCK: 'Changed stock', UPDATE_PRODUCT: 'Changed product', RATE_COURT: 'Rated a court', EDIT_RATING: 'Edited a rating',
+    HIDE_RATING: 'Hid a rating', UNHIDE_RATING: 'Showed a rating again', REGISTER: 'Created account', PASSWORD_RESET_REQUESTED: 'Asked for reset code', PASSWORD_RESET: 'Reset password'
   };
   function activityTab() {
     const actions = [...new Set(V.logs.map(l => l.action))].sort();
@@ -2116,8 +2312,8 @@
   }
 
   /* ---------- Shell ---------- */
-  const VIEWS = { home: renderHome, book: renderBook, checkout: renderCheckout, shop: renderShop, cart: renderCart, mine: renderMine, profile: renderProfile, login: renderLogin, signup: renderSignup, reset: renderReset, admin: renderAdmin };
-  const TITLES = { home: '', book: 'Book a slot', checkout: 'Checkout', shop: 'Athlete shop', cart: 'Cart', mine: 'My reservations', profile: 'Profile', login: 'Sign in', signup: 'Sign up', reset: 'Reset password', admin: 'Front desk' };
+  const VIEWS = { home: renderHome, book: renderBook, checkout: renderCheckout, shop: renderShop, cart: renderCart, mine: renderMine, profile: renderProfile, login: renderLogin, signup: renderSignup, reset: renderReset, admin: renderAdmin, desk: renderDesk };
+  const TITLES = { home: '', book: 'Book a slot', checkout: 'Checkout', shop: 'Athlete shop', cart: 'Cart', mine: 'My reservations', profile: 'Profile', login: 'Sign in', signup: 'Sign up', reset: 'Reset password', admin: 'Front desk', desk: 'Floor view' };
   let toastTimer = null, barObserver = null;
   function toast(msg) {
     const el = $('#toast');
@@ -2191,7 +2387,7 @@
     runCountUp();
     scIdx = -1;
     if (S.view === 'home') scUpdate(); else delete document.documentElement.dataset.sport;
-    const title = S.view === 'book' && isAdmin() ? 'Court availability' : TITLES[S.view];
+    const title = S.view === 'book' && isAdmin() ? 'Court availability' : S.view === 'desk' && !isAdmin() ? 'Not available' : TITLES[S.view];
     document.title = (title ? title + ' · ' : '') + 'Athletica Manggahan';
   }
   function go(view, fromHistory) {
@@ -2225,7 +2421,7 @@
     const was = me() ? me().id : null;
     setView(out.view);
     renderChrome();
-    if ((me() ? me().id : null) !== was && !me() && ['mine', 'cart', 'checkout', 'profile', 'admin'].includes(S.view)) { S.view = 'login'; S.loginNotice = 'Your session ended. Sign in again to continue.'; }
+    if ((me() ? me().id : null) !== was && !me() && ['mine', 'cart', 'checkout', 'profile', 'admin', 'desk'].includes(S.view)) { S.view = 'login'; S.loginNotice = 'Your session ended. Sign in again to continue.'; }
     const busy = document.activeElement && document.activeElement.closest('form, #opts, #notif');
     if (!force && (busy || $('#dlg').open || S.drafts.res.busy || S.drafts.cart.busy)) { S.stale = true; syncChrome(); moveInd(); return; }
     S.stale = false;
@@ -2298,6 +2494,14 @@
       case 'keep': S.pending = null; if (!$('#opts').hidden) togglePanel('opts', true); else render(); break;
       case 'menu': setMenu(!menuOpen()); break;
       case 'section': goSection(d.section); break;
+      case 'desk-court': S.deskCourt = d.court; S.deskTab = 'today'; S.pending = null; S.focusSel = '#dp-h'; render(); break;
+      case 'desk-close': { const id = S.deskCourt; S.deskCourt = null; S.pending = null; S.focusSel = `[data-action="desk-court"][data-court="${id}"]`; render(); break; }
+      case 'desk-tab': S.deskTab = d.tab; S.pending = null; S.focusSel = `[data-action="desk-tab"][data-tab="${d.tab}"]`; render(); break;
+      case 'desk-now': S.deskHour = null; deskUpdate(); { const rg = $('#deskTime'); if (rg) { const s = V.settings; rg.value = Math.min(s.closeHour - 1, Math.max(s.openHour, Math.floor(nowMins() / 60))); } } break;
+      case 'desk-review': S.adminTab = 'payments'; go('admin'); break;
+      case 'rating-hide-ask': S.pending = 'hide:' + d.id; S.focusSel = '#hr-' + d.id; render(); break;
+      case 'rating-unhide': staffAct(t, 'rating.unhide', { ratingId: d.id }, 'Rating is visible again.'); break;
+      case 'rate': openRate(d.id); break;
       case 'options': togglePanel('opts'); break;
       case 'notif': togglePanel('notif'); break;
       case 'theme': applyTheme(d.mode, true); togglePanel('opts', true); { const f = $(`#opts [data-mode="${d.mode}"]`); if (f) f.focus(); } break;
@@ -2392,6 +2596,14 @@
       return;
     }
     if (el.id === 'cx-other') { S.cx.otherText = el.value; return; }
+    if (el.id === 'deskTime') { S.deskHour = Number(el.value); deskUpdate(); return; }
+    if (el.name === 'stars' && el.form && el.form.id === 'rateForm' && S.rate) {
+      S.rate.stars = Number(el.value); delete S.rate.err.stars;
+      document.querySelectorAll('#rateForm .rate-star').forEach((l, i) => l.classList.toggle('on', i < S.rate.stars));
+      const e = $('#err-stars'); if (e) e.remove();
+      return;
+    }
+    if (el.id === 'rate-comment' && S.rate) { S.rate.comment = el.value; const c = $('#rate-count'); if (c) c.textContent = el.value.length + ' / 300'; return; }
     if (el.dataset.rx) { S.rx.note = el.value; return; }
     if (el.form && el.form.id === 'bookForm' && el.type !== 'radio' && el.name in S.form) {
       S.form[el.name] = el.value;
@@ -2432,6 +2644,12 @@
     else if (id === 'profileForm') saveProfile(f);
     else if (id === 'settingsForm') saveSettings(f);
     else if (id === 'cxForm') cxContinue();
+    else if (id === 'rateForm') submitRate();
+    else if (f.dataset.hideForm) {
+      const reason = f.reason.value.trim();
+      if (!reason) { toast('Say why this rating is hidden.'); f.reason.focus(); return; }
+      staffAct(f.querySelector('button[type=submit]'), 'rating.hide', { ratingId: f.dataset.hideForm, reason }, 'Rating hidden. It no longer counts toward the average.');
+    }
     else if (f.dataset.courtForm) {
       const fd = Object.fromEntries(new FormData(f).entries()), cid = f.dataset.courtForm;
       const b = f.querySelector('button[type=submit]');
@@ -2449,7 +2667,8 @@
     if (e.key !== 'Escape') return;
     if (menuOpen()) { setMenu(false, true); return; }
     const open = ['opts', 'notif'].find(id => !document.getElementById(id).hidden);
-    if (open) { togglePanel(open, false); const tr = document.querySelector(`[aria-controls="${open}"]`); if (tr) tr.focus(); }
+    if (open) { togglePanel(open, false); const tr = document.querySelector(`[aria-controls="${open}"]`); if (tr) tr.focus(); return; }
+    if (S.view === 'desk' && S.deskCourt && !$('#dlg').open) { const id = S.deskCourt; S.deskCourt = null; S.pending = null; S.focusSel = `[data-action="desk-court"][data-court="${id}"]`; render(); }
   });
   $('#dlg').addEventListener('close', () => { S.cx = null; S.rx = null; if (S.stale) refresh(true); });
   $('#dlg').addEventListener('click', e => { if (e.target === e.currentTarget) closeDlg(); });
@@ -2503,6 +2722,7 @@
     if (out.ok && out.rev !== V.rev) refresh();
   }, 15000);
   setInterval(() => { if (V && document.visibilityState === 'visible' && S.view === 'home') { const b = $('#board'); if (b) b.innerHTML = boardHTML(); } }, 60000);
+  setInterval(() => { if (V && document.visibilityState === 'visible' && S.view === 'desk' && S.deskHour == null) deskUpdate(); }, 30000);
   window.addEventListener('storage', e => { if (MODE === 'demo' && e.key === DEMO_DB && demo) { demo.reload(); refresh(); } });
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { setHeader(); moveInd(); });
 
@@ -2518,7 +2738,7 @@
       restoreSelection();
       const want = location.hash.slice(1);
       if (VIEWS[want]) S.view = want;
-      else if (!want && me()) S.view = isAdmin() ? 'admin' : 'mine';
+      else if (!want && me()) S.view = isAdmin() ? 'desk' : 'mine';
       if (S.view === 'checkout' && !S.co) S.view = isPlayer() ? 'mine' : 'home';
       if (S.view === 'book') ensureOpenDate();
       renderChrome();

@@ -57,6 +57,14 @@ The navigation sits in the top bar at every width; on phones it folds into a Men
 
 Visitors see Home, Courts, Features, How it works and Shop, plus **Sign in** and **Sign up** (on phones, at the bottom of the menu). Courts can be browsed without an account; booking asks you to sign in and keeps your selection. After signing in or up, players land on My reservations and front desk staff on the Front desk. Opening the site root while signed in goes straight there.
 
+## Front desk floor view
+
+Front desk accounts land on **Floor view**: every court as a 3D tile showing who is on it now (with player markers on the court), who is up next, and whether payment is still due. A timeline shows the floor at any hour today. Selecting a court opens its full schedule for the day, with the usual Check in, Cash received, Review payment and Cancel actions, plus its ratings. On smaller screens the panel slides up from the bottom. It's built from the reservations the front desk already receives; players get "Not available".
+
+## Court ratings
+
+Players can rate a court (1–5 stars, optional comment up to 300 characters) once their booking is completed, and edit it for 7 days. Courts show "★ 4.2 (9)" on the court cards, a Rating fact and the three latest comments; a court shows "New" until it has 3 visible ratings. The front desk can hide a rating (a reason is required and it's logged) or show it again; hidden ratings don't count. Ratings live in the `courtRatings` collection, and older databases get sample ratings on first start.
+
 ## How the rules are enforced
 
 - Requests are applied one at a time and each writes the whole database atomically, so checking a slot and reserving it can't interleave. Two players racing for the same hour: one gets it, the other is told it's taken.

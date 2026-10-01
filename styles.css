@@ -1169,7 +1169,7 @@ body{display:flex;flex-direction:column;min-height:100vh;min-height:100dvh}
 .cc-avail.closed{color:var(--bad);background:var(--bad-bg)}
 
 /* The chosen court: its facts, then its hours */
-.court-facts{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:var(--bw);margin:0 0 14px;background:var(--line);border:var(--bw) solid var(--line)}
+.court-facts{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:var(--bw);margin:0 0 14px;background:var(--line);border:var(--bw) solid var(--line)}
 .court-facts div{min-width:0;padding:8px 10px;background:var(--panel)}
 .court-facts dt{font:700 .58rem var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
 .court-facts dd{margin:2px 0 0;font-size:.86rem;font-weight:700;overflow-wrap:anywhere}
@@ -1179,7 +1179,7 @@ body{display:flex;flex-direction:column;min-height:100vh;min-height:100dvh}
 .pe-arrow{display:grid;place-items:center;flex:none;width:42px;height:42px;background:var(--red);color:#0B0B0A;border:var(--bw) solid var(--line);font-size:1.3rem;font-weight:900}
 #times{scroll-margin-top:calc(var(--hh,96px) + 16px)}
 #times:focus{outline:none}
-@media (max-width:860px){.court-facts{grid-template-columns:repeat(3,minmax(0,1fr))}.court-facts>div:last-child{grid-column:span 2}}
+@media (max-width:860px){.court-facts{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media (max-width:520px){
   .cc-row{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
   .c3d-stage{height:118px}
@@ -1219,3 +1219,91 @@ body{display:flex;flex-direction:column;min-height:100vh;min-height:100dvh}
 .feat p{color:var(--muted);font-size:.95rem}
 @media (max-width:900px){.feats{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:560px){.feats{grid-template-columns:minmax(0,1fr)}}
+
+/* ---------- Court ratings ---------- */
+.cc-stars{margin-left:8px;padding-left:8px;border-left:1px solid var(--hair);color:var(--fg);white-space:nowrap}
+.cc-stars.new{color:var(--muted)}
+.stars{color:var(--red);letter-spacing:1px;white-space:nowrap}
+.stars-off{color:var(--hair)}
+.court-reviews{margin-top:22px}
+.court-reviews h2{font-size:1.1rem;margin-bottom:10px}
+.court-reviews ul{list-style:none;margin:0;padding:0;display:grid;gap:var(--bw);background:var(--line);border:var(--bw) solid var(--line);box-shadow:var(--hard-sm)}
+.court-reviews li{background:var(--panel);padding:12px 14px}
+.court-reviews p{margin:4px 0}
+.court-reviews .muted,.bk-rated{font-size:.82rem}
+.bk-rated{margin-top:6px}
+dialog.rate-dlg{max-width:460px}
+.rate-in{display:grid;gap:12px;padding:22px}
+.rate-in h2{font-size:1.3rem}
+.rate-fs{border:0;margin:0;padding:0}
+.rate-fs legend{margin-bottom:8px;font:700 .64rem var(--mono);letter-spacing:.14em;text-transform:uppercase}
+.rate-stars{display:flex;gap:8px}
+.rate-star{display:grid;place-items:center;width:46px;height:46px;cursor:pointer;font-size:1.5rem;line-height:1;color:var(--hair);background:var(--panel);border:var(--bw) solid var(--line);box-shadow:var(--hard-sm);transition:background-color var(--t),color var(--t)}
+.rate-star:hover{color:var(--red)}
+.rate-star.on{background:var(--fg);color:var(--red)}
+.rate-star:has(input:focus-visible){outline:3px solid var(--red);outline-offset:2px}
+
+/* ---------- Front desk floor view ---------- */
+.desk-clock{display:grid;justify-items:end;font-family:var(--mono)}
+.desk-clock strong{font-size:clamp(1.6rem,4vw,2.6rem);font-weight:700;line-height:1}
+.desk-clock span{color:var(--muted);font-size:.78rem}
+.desk-stats{grid-template-columns:repeat(5,minmax(0,1fr))}
+.desk-stats .stat span b{display:inline-block;min-width:1.1em}
+.stat.st-soon strong,.stat.st-due strong{color:var(--warn)}
+.stat.st-free strong{color:var(--ok)}
+.stat.st-closed strong{color:var(--bad)}
+.desk-time{display:flex;align-items:center;flex-wrap:wrap;gap:12px 16px;margin:18px 0 24px;padding:12px 14px;background:var(--panel);border:var(--bw) solid var(--line);box-shadow:var(--hard-sm)}
+.desk-time label{font:700 .64rem var(--mono);letter-spacing:.14em;text-transform:uppercase}
+.desk-time input[type=range]{flex:1;min-width:160px;accent-color:var(--red)}
+.desk-time output{min-width:170px;font:700 .74rem var(--mono);letter-spacing:.04em}
+.desk{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:24px;align-items:start}
+.desk>*{min-width:0}
+.desk-sport+.desk-sport{margin-top:24px}
+.desk-row{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+.desk-tag{position:absolute;top:10px;left:10px;z-index:1;display:inline-flex;align-items:center;gap:6px;padding:3px 8px;font:700 .58rem/1.4 var(--mono);letter-spacing:.12em;text-transform:uppercase;background:var(--panel);color:var(--fg);border:var(--bw) solid var(--line)}
+.desk-tag.st-use{background:var(--red);color:#0B0B0A;border-color:#0B0B0A}
+.desk-tag.st-soon{background:var(--volt);color:#0B0B0A;border-color:#0B0B0A}
+.desk-tag.st-due{background:var(--warn-bg);color:var(--warn)}
+.desk-tag.st-free{background:var(--ok-bg);color:var(--ok)}
+.desk-tag.st-closed{background:var(--bad-bg);color:var(--bad)}
+.desk-card.st-closed .c3d-stage{filter:grayscale(.9);opacity:.7}
+.desk-card.st-use{border-color:var(--red)}
+.desk-line{margin-top:4px;font-size:.84rem;line-height:1.35}
+.desk-line b{font-weight:800}
+.desk-next{font:600 .66rem/1.4 var(--mono);letter-spacing:.03em;color:var(--muted)}
+/* Players on court: upright markers standing on the 3D floor */
+.c3d-pin{position:absolute;width:7px;height:16px;margin:-16px 0 0 -3.5px;transform-origin:50% 100%;transform:rotateX(-90deg);background:var(--volt);border:1.5px solid #111;border-radius:3px 3px 1px 1px}
+.c3d-pin::before{content:"";position:absolute;left:50%;top:-9px;width:9px;height:9px;margin-left:-4.5px;border-radius:50%;background:var(--red);border:1.5px solid #111}
+.desk-panel{position:sticky;top:calc(var(--hh,96px) + 18px);max-height:calc(100vh - var(--hh,96px) - 36px);overflow:auto;background:var(--panel);border:var(--bw) solid var(--line);box-shadow:var(--hard)}
+.dp-empty{padding:22px;color:var(--muted)}
+.dp-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:16px 16px 12px;border-bottom:var(--bw) solid var(--line)}
+.dp-head h2{margin:6px 0 2px;font-size:1.5rem}
+.dp-head .muted{font-size:.82rem}
+.dp-tabs{margin:12px 16px}
+.dp-sched{list-style:none;margin:0;padding:0 16px 16px}
+.dp-slot{display:grid;grid-template-columns:92px minmax(0,1fr);gap:10px;padding:10px 0;border-top:1px solid var(--hair)}
+.dp-slot.here{padding-left:8px;background:linear-gradient(90deg,var(--panel-2),transparent);box-shadow:inset 4px 0 0 var(--red)}
+.dp-time{font:700 .7rem var(--mono);letter-spacing:.03em}
+.dp-time em{display:block;margin-top:2px;font-style:normal;font-size:.58rem;letter-spacing:.14em;text-transform:uppercase;color:var(--red)}
+.dp-slot .muted{margin:2px 0 6px;font-size:.78rem}
+.dp-slot.free .muted{font-size:.84rem}
+.dp-slot .row-actions,.dpr-form .row-actions{flex-wrap:wrap;margin-top:8px}
+.dp-sum{padding:0 16px;font-size:.84rem;color:var(--muted)}
+.dp-ratings{list-style:none;margin:8px 0 0;padding:0 16px 16px}
+.dp-ratings li{padding:12px 0;border-top:1px solid var(--hair)}
+.dp-ratings li.is-hidden>:not(.btn){opacity:.65}
+.dp-ratings p{margin:4px 0}
+.dpr-top{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px}
+.dpr-top .muted{font-size:.76rem}
+.dpr-hidden{font-size:.8rem;color:var(--bad)}
+.dpr-form{display:grid;gap:6px;margin-top:8px}
+.dpr-form label{font:700 .62rem var(--mono);letter-spacing:.12em;text-transform:uppercase}
+.dp-none{padding:16px;color:var(--muted)}
+@media (max-width:1060px){
+  .desk{grid-template-columns:minmax(0,1fr)}
+  .desk-panel{display:none}
+  .desk.has-panel .desk-panel{display:block;position:fixed;left:0;right:0;top:auto;bottom:0;z-index:60;max-height:72vh;border-width:var(--bwt) 0 0;box-shadow:0 -8px 0 var(--red-shadow)}
+}
+@media (max-width:1060px) and (prefers-reduced-motion:no-preference){.desk.has-panel .desk-panel{animation:rise-in .25s var(--ease)}}
+@media (max-width:760px){.desk-stats{grid-template-columns:repeat(3,minmax(0,1fr))}.desk-stats .stat:nth-child(4){border-left:0}}
+@media (max-width:520px){.desk-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.desk-clock{justify-items:start}.desk-time output{min-width:0}}

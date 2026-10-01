@@ -145,7 +145,7 @@
       settings: defaultSettings(),
       users: [], sports: SPORTS.map(s => Object.assign({}, s)), courts: [], reservations: [], payments: [], paymentProofs: [],
       cancellationReasons: [], cancellations: [], categories: CATEGORIES.map(c => Object.assign({}, c)), products: [],
-      cartItems: [], orders: [], orderItems: [], notifications: [], activityLogs: [], passwordResets: []
+      cartItems: [], orders: [], orderItems: [], notifications: [], activityLogs: [], passwordResets: [], courtRatings: []
     };
     for (const u of DEMO_USERS) {
       db.users.push({
@@ -163,6 +163,7 @@
     REASONS.forEach(label => db.cancellationReasons.push({ id: nextId(db, 'CR', 3), label, active: true }));
     seedDemoHistory(db, t);
     ensureSchedule(db, t);
+    seedRatings(db, t);
     return db;
   }
 
@@ -276,6 +277,44 @@
     const ctx = { db, t, actor: user };
     cancelReservation(ctx, res, 'CR-002', '');
   }
+
+  /* ---------- Court ratings ---------- */
+  // Players rate a court after a completed booking: 1–5 stars, optional comment, editable for 7 days.
+  const RATING_EDIT_DAYS = 7, RATING_MIN_COUNT = 3, RATING_COMMENT_MAX = 300;
+  const RATING_NOTES = {
+    5: ['Floor was spotless and the lights were perfect.', 'Best court in Pasig for evening games.', 'Staff had us checked in within a minute.', ''],
+    4: ['Good surface, a bit warm in the afternoon.', 'Nets and lines in great shape.', 'Easy booking, would come back.', ''],
+    3: ['Decent, but the changing room was busy.', 'Fine for practice. Lighting could be brighter.', ''],
+    2: ['Court was still wet when we started.', 'Started 10 minutes late.']
+  };
+  function seedRatings(db, t) {
+    const { date: today } = local(t);
+    db.courts.forEach(court => {
+      const r = rng(hash('ratings|' + court.id)), lean = r() < 0.3 ? 1 : 0;
+      db.reservations.filter(x => x.courtId === court.id && x.status === 'COMPLETED' && x.source === 'WALK_IN' && x.date < today)
+        .forEach(res => {
+          if (r() > 0.65) return;
+          const roll = r(), stars = roll < 0.45 - lean * 0.15 ? 5 : roll < 0.8 ? 4 : roll < 0.95 ? 3 : 2;
+          const notes = RATING_NOTES[stars], at = Math.min(t, slotMs(res.date, hourOf(res.endTime)) + Math.floor(r() * 8) * 3600000);
+          db.courtRatings.push({
+            id: nextId(db, 'RAT', 4), courtId: court.id, reservationId: res.id, userId: null, authorName: res.customerName,
+            stars, comment: notes[Math.floor(r() * notes.length)], createdAt: iso(at), updatedAt: iso(at),
+            hidden: false, hiddenReason: '', hiddenBy: null, hiddenAt: null
+          });
+        });
+    });
+  }
+  const shortName = u => u.firstName + ' ' + (u.lastName ? u.lastName[0] + '.' : '');
+  function ratingAuthor(db, x) {
+    const u = x.userId ? db.users.find(v => v.id === x.userId) : null;
+    return u ? shortName(u) : x.authorName || 'Player';
+  }
+  function ratingSummary(db, courtId) {
+    const list = db.courtRatings.filter(x => x.courtId === courtId && !x.hidden);
+    const avg = list.length ? Math.round(list.reduce((n, x) => n + x.stars, 0) / list.length * 10) / 10 : null;
+    return { ratingAverage: list.length >= RATING_MIN_COUNT ? avg : null, ratingCount: list.length };
+  }
+  const ratingEditableUntil = x => iso(Date.parse(x.createdAt) + RATING_EDIT_DAYS * 86400000);
 
   /* ---------- Housekeeping, run before every request ---------- */
   function housekeeping(db, t) {
@@ -680,6 +719,52 @@
       return null;
     },
 
+    'rating.submit'(ctx, p) {
+      const u = needUser(ctx), { db, t } = ctx;
+      if (u.role !== 'USER') fail(403, 'players_only', 'Only players can rate courts.');
+      const r = ownReservation(ctx, String(p.reservationId || ''));
+      if (r.status !== 'COMPLETED') fail(409, 'not_played', 'You can rate a court once your booking is completed.');
+      const stars = Number(p.stars), raw = String(p.comment == null ? '' : p.comment).trim();
+      const e = {};
+      if (!Number.isInteger(stars) || stars < 1 || stars > 5) e.stars = 'Choose from 1 to 5 stars.';
+      if (raw.length > RATING_COMMENT_MAX) e.comment = `Keep your comment to ${RATING_COMMENT_MAX} characters.`;
+      if (Object.keys(e).length) throw fieldError(e);
+      const comment = text(raw, RATING_COMMENT_MAX), now = iso(t);
+      const existing = db.courtRatings.find(x => x.reservationId === r.id);
+      if (existing) {
+        if (ratingEditableUntil(existing) < now) fail(409, 'edit_closed', `Ratings can only be changed within ${RATING_EDIT_DAYS} days.`);
+        Object.assign(existing, { stars, comment, updatedAt: now });
+        log(ctx, 'EDIT_RATING', 'RATING', existing.id, `${stars}★ for ${courtLabel(db, r.courtId)}`);
+        ctx.changed = true;
+        return { ratingId: existing.id };
+      }
+      const x = { id: nextId(db, 'RAT', 4), courtId: r.courtId, reservationId: r.id, userId: u.id, authorName: shortName(u), stars, comment,
+        createdAt: now, updatedAt: now, hidden: false, hiddenReason: '', hiddenBy: null, hiddenAt: null };
+      db.courtRatings.push(x);
+      log(ctx, 'RATE_COURT', 'RATING', x.id, `${stars}★ for ${courtLabel(db, r.courtId)}`);
+      ctx.changed = true;
+      return { ratingId: x.id };
+    },
+    'rating.hide'(ctx, p) {
+      const admin = needAdmin(ctx), x = ctx.db.courtRatings.find(v => v.id === p.ratingId);
+      if (!x) fail(404, 'not_found', 'Rating not found.');
+      const reason = text(p.reason, 200);
+      if (!reason) throw fieldError({ reason: 'Say why this rating is hidden.' });
+      Object.assign(x, { hidden: true, hiddenReason: reason, hiddenBy: admin.id, hiddenAt: iso(ctx.t) });
+      log(ctx, 'HIDE_RATING', 'RATING', x.id, `Hidden: ${reason}`);
+      ctx.changed = true;
+      return null;
+    },
+    'rating.unhide'(ctx, p) {
+      needAdmin(ctx);
+      const x = ctx.db.courtRatings.find(v => v.id === p.ratingId);
+      if (!x) fail(404, 'not_found', 'Rating not found.');
+      Object.assign(x, { hidden: false, hiddenReason: '', hiddenBy: null, hiddenAt: null });
+      log(ctx, 'UNHIDE_RATING', 'RATING', x.id, 'Shown again');
+      ctx.changed = true;
+      return null;
+    },
+
     'reservation.cancelQuote'(ctx, p) {
       needUser(ctx);
       const r = ownReservation(ctx, p.reservationId);
@@ -943,6 +1028,11 @@
       const blocked = cancelBlocker(db, r, actor, t);
       out.canCancel = !blocked && (actor.role === 'ADMIN' || r.userId === actor.id);
       out.refundDeadline = iso(slotMs(r.date, hourOf(r.startTime)) - db.settings.cancellationPolicy.minimumHoursBeforeBooking * 3600000);
+      if (actor.role === 'USER' && r.userId === actor.id) {
+        const x = db.courtRatings.find(v => v.reservationId === r.id);
+        out.rating = x ? { stars: x.stars, comment: x.comment, editableUntil: ratingEditableUntil(x), hidden: x.hidden } : null;
+        out.canRate = r.status === 'COMPLETED' && (!x || ratingEditableUntil(x) >= iso(t));
+      }
     }
     return out;
   }
@@ -960,7 +1050,8 @@
     const admin = actor && actor.role === 'ADMIN';
     const view = {
       rev: db.meta.rev, now: iso(t), today, hour, me: actor ? publicUser(actor) : null,
-      settings: JSON.parse(JSON.stringify(s)), sports: db.sports, courts: db.courts,
+      settings: JSON.parse(JSON.stringify(s)), sports: db.sports, courts: db.courts.map(c => Object.assign({}, c, ratingSummary(db, c.id))),
+      courtReviews: courtReviews(db),
       reasons: db.cancellationReasons.filter(r => r.active), categories: db.categories,
       products: admin ? db.products : db.products.filter(p => p.status === 'ACTIVE'),
       occupancy: {}
@@ -999,10 +1090,20 @@
     view.logs = db.activityLogs.slice(-250).reverse();
     view.users = db.users.map(publicUser);
     view.customers = customers(db);
+    view.ratings = db.courtRatings.slice().reverse().map(x => Object.assign({}, x, { author: ratingAuthor(db, x) }));
     view.reports = reports(db, t);
     return view;
   }
 
+  // Three most recent visible comments per court; authors shown as first name and last initial.
+  function courtReviews(db) {
+    const out = {};
+    db.courtRatings.filter(x => !x.hidden && x.comment).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).forEach(x => {
+      const list = out[x.courtId] = out[x.courtId] || [];
+      if (list.length < 3) list.push({ stars: x.stars, comment: x.comment, author: ratingAuthor(db, x), date: x.updatedAt.slice(0, 10) });
+    });
+    return out;
+  }
   function customers(db) {
     const map = new Map();
     const row = key => { if (!map.has(key)) map.set(key, { key, name: '', username: '', email: '', phone: '', type: 'WALK_IN', reservations: 0, cancellations: 0, paid: 0, lastVisit: '' }); return map.get(key); };
@@ -1074,6 +1175,8 @@
       const found = uid ? db.users.find(u => u.id === uid && u.status === 'ACTIVE') : null;
       if (!Array.isArray(db.passwordResets)) db.passwordResets = [];
       db.products.forEach(p => { if (p.image === undefined) p.image = productImage(p.art); });
+      let migrated = false;
+      if (!Array.isArray(db.courtRatings)) { db.courtRatings = []; seedRatings(db, t); migrated = true; }
       const ctx = {
         db, t, actor: found || null, changed: false, hasher, throttle, random, newToken: undefined, devMail: undefined,
         signIn(u) { const tk = random(); sessions.set(tk, u.id); ctx.newToken = tk; },
@@ -1082,7 +1185,7 @@
         mail(msg) { const out = mailer ? mailer(msg) : null; if (out) ctx.devMail = out; }
       };
       if (uid && !found) { sessions.del(token); ctx.newToken = null; }
-      const house = housekeeping(db, t);
+      const house = housekeeping(db, t) || migrated;
       const fn = ACTIONS[action];
       try {
         if (!fn) fail(404, 'unknown_action', 'That action isn’t available.');
