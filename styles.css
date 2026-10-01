@@ -1307,3 +1307,19 @@ dialog.rate-dlg{max-width:460px}
 @media (max-width:1060px) and (prefers-reduced-motion:no-preference){.desk.has-panel .desk-panel{animation:rise-in .25s var(--ease)}}
 @media (max-width:760px){.desk-stats{grid-template-columns:repeat(3,minmax(0,1fr))}.desk-stats .stat:nth-child(4){border-left:0}}
 @media (max-width:520px){.desk-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.desk-clock{justify-items:start}.desk-time output{min-width:0}}
+
+/* ---------- First-visit intro (landing page, once) ---------- */
+html.intro-on{overflow:hidden}
+html.intro-hold .hero *{animation-play-state:paused!important}
+.intro{position:fixed;inset:0;z-index:300;overflow:hidden}
+.intro-mask{position:absolute;inset:0;width:100%;height:100%}
+.intro-sheet{fill:var(--bg)}
+.intro-logo{fill:var(--red)}
+.intro-ball{position:absolute;left:50%;top:50%;width:min(44vmin,280px);height:min(44vmin,280px);transform:translate(-50%,-50%) scale(0);
+  fill:var(--red);stroke:#0B0B0A;stroke-width:3;will-change:transform}
+.intro-ball path{fill:none}
+.intro-count{position:absolute;top:calc(18px + env(safe-area-inset-top,0px));right:20px;margin:0;color:var(--fg);
+  font:700 clamp(1.3rem,3.4vw,2.2rem)/1 var(--mono);font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.intro-label{position:absolute;left:20px;bottom:calc(22px + env(safe-area-inset-bottom,0px));max-width:calc(100% - 180px);margin:0;color:var(--muted);
+  font:700 .64rem/1.5 var(--mono);letter-spacing:.18em;text-transform:uppercase}
+.intro-skip{position:absolute;right:20px;bottom:calc(16px + env(safe-area-inset-bottom,0px))}

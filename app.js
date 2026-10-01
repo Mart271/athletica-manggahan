@@ -2726,6 +2726,79 @@
   window.addEventListener('storage', e => { if (MODE === 'demo' && e.key === DEMO_DB && demo) { demo.reload(); refresh(); } });
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { setHeader(); moveInd(); });
 
+  /* ---------- First-visit intro: landing page only, once per browser ---------- */
+  // A red ball grows while a counter runs, drops into the Athletica mark, and the mark opens
+  // into a window that zooms through to the landing page. Skippable; never shown with reduced motion.
+  const INTRO_KEY = 'athletica-intro-seen';
+  function playIntro() {
+    let seen = true;
+    try { seen = localStorage.getItem(INTRO_KEY) === '1'; } catch (e) { seen = true; }
+    if (seen || S.view !== 'home' || reduceMotion()) return;
+    try { localStorage.setItem(INTRO_KEY, '1'); } catch (e) { /* storage blocked: it just won't be remembered */ }
+    const logo = ($('.brand .mark') || {}).innerHTML || '';
+    const root = document.documentElement, el = document.createElement('div');
+    el.className = 'intro';
+    el.innerHTML = `<svg class="intro-mask" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+        <defs><mask id="introHole" maskUnits="userSpaceOnUse" x="-5000" y="-5000" width="10000" height="10000">
+          <rect x="-5000" y="-5000" width="10000" height="10000" fill="#fff"/><g class="intro-hole" fill="#000">${logo}</g></mask></defs>
+        <rect class="intro-sheet" x="-5000" y="-5000" width="10000" height="10000" mask="url(#introHole)"/>
+        <g class="intro-logo">${logo}</g></svg>
+      <svg class="intro-ball" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="47"/><path d="M50 3v94M3 50h94M20 13c15 13 15 61 0 74M80 13c-15 13-15 61 0 74"/></svg>
+      <p class="intro-count" aria-hidden="true"><span>000</span>%</p>
+      <p class="intro-label" aria-hidden="true">${esc(V.settings.brandName)} · ${esc(V.settings.slogan)}</p>
+      <button type="button" class="btn btn-sm intro-skip">Skip intro</button>`;
+    root.classList.add('intro-on', 'intro-hold');
+    document.body.appendChild(el);
+    const ball = el.querySelector('.intro-ball'), count = el.querySelector('.intro-count span'), hole = el.querySelector('.intro-hole'), mark = el.querySelector('.intro-logo');
+    const fades = el.querySelectorAll('.intro-count, .intro-label, .intro-skip');
+    const place = (g, sc, ax, ay) => g.setAttribute('transform', `translate(50 50) scale(${sc}) translate(${-ax} ${-ay})`);
+    const seg = (t, a, b) => Math.min(1, Math.max(0, (t - a) / (b - a)));
+    const outCubic = x => 1 - Math.pow(1 - x, 3), inCubic = x => x * x * x;
+    const outBack = x => 1 + 2.70158 * Math.pow(x - 1, 3) + 1.70158 * Math.pow(x - 1, 2), inBack = x => 2.70158 * x * x * x - 1.70158 * x * x;
+    // The zoom ends inside the mark's centre line, so the window ends up covering the whole screen.
+    const S0 = 0.34, S1 = 70, AX = 48, AY = 66;
+    let start = 0, raf = 0, over = false, released = false;
+    place(hole, 0.0001, 50, 50); place(mark, 0.0001, 50, 50);
+    const skip = el.querySelector('.intro-skip');
+    function finish() {
+      if (over) return;
+      over = true;
+      cancelAnimationFrame(raf);
+      document.removeEventListener('keydown', onKey, true);
+      el.remove();
+      root.classList.remove('intro-on', 'intro-hold');
+      if (!released) { S.countUp = true; runCountUp(); }
+      const h = $('#hero-h');
+      if (h) h.focus({ preventScroll: true });
+    }
+    function onKey(e) { if (e.key === 'Escape') { e.preventDefault(); finish(); } }
+    function frame(now) {
+      if (!start) start = now;
+      const t = now - start;
+      count.textContent = String(Math.round(outCubic(seg(t, 0, 1300)) * 100)).padStart(3, '0');
+      const grow = outBack(seg(t, 80, 900)), drop = inBack(seg(t, 1300, 1650));
+      ball.style.transform = `translate(-50%, -50%) scale(${Math.max(0, grow * (1 - drop)).toFixed(4)}) rotate(${(t * 0.22).toFixed(1)}deg)`;
+      if (t < 2050) place(mark, Math.max(0.0001, S0 * outBack(seg(t, 1450, 1850))), 50, 50);
+      else {
+        // The window is open: let the landing page build itself behind it.
+        if (!released) { released = true; root.classList.remove('intro-hold'); S.countUp = true; runCountUp(); }
+        const z = inCubic(seg(t, 2050, 3050)), sc = S0 * Math.pow(S1 / S0, z);
+        place(hole, sc, 50 + (AX - 50) * z, 50 + (AY - 50) * z);
+        place(mark, sc, 50 + (AX - 50) * z, 50 + (AY - 50) * z);
+        mark.style.opacity = String(1 - seg(t, 2050, 2380));
+      }
+      const fadeOut = String(1 - seg(t, 1900, 2250));
+      fades.forEach(f => { f.style.opacity = fadeOut; });
+      el.style.opacity = String(1 - seg(t, 2950, 3150));
+      if (t >= 3150) { finish(); return; }
+      raf = requestAnimationFrame(frame);
+    }
+    skip.addEventListener('click', finish);
+    document.addEventListener('keydown', onKey, true);
+    skip.focus({ preventScroll: true });
+    raf = requestAnimationFrame(frame);
+  }
+
   /* ---------- Boot ---------- */
   (async function boot() {
     try {
@@ -2743,6 +2816,7 @@
       if (S.view === 'book') ensureOpenDate();
       renderChrome();
       render();
+      playIntro();
       try { history.replaceState(null, '', '#' + S.view); } catch (e) { /* sandboxed frame */ }
     } catch (e) {
       $('#app').innerHTML = '<div class="wrap page"><div class="empty"><h2>Athletica Manggahan couldn’t start.</h2><p>Reload the page. If it keeps happening, restart the server with <code>node server.js</code>.</p></div></div>';

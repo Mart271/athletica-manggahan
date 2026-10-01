@@ -57,6 +57,10 @@ The navigation sits in the top bar at every width; on phones it folds into a Men
 
 Visitors see Home, Courts, Features, How it works and Shop, plus **Sign in** and **Sign up** (on phones, at the bottom of the menu). Courts can be browsed without an account; booking asks you to sign in and keeps your selection. After signing in or up, players land on My reservations and front desk staff on the Front desk. Opening the site root while signed in goes straight there.
 
+## First-visit intro
+
+The first time someone opens the landing page, a short intro plays (about 3 seconds): a red ball grows while a counter runs, drops into the Athletica mark, and the mark opens into a window that zooms through to the page. It plays once per browser (remembered in localStorage as `athletica-intro-seen`), never on other pages or when going back to Home, never for reduced-motion users, and can be skipped with the button or Escape. Clear that key to see it again.
+
 ## Front desk floor view
 
 Front desk accounts land on **Floor view**: every court as a 3D tile showing who is on it now (with player markers on the court), who is up next, and whether payment is still due. A timeline shows the floor at any hour today. Selecting a court opens its full schedule for the day, with the usual Check in, Cash received, Review payment and Cancel actions, plus its ratings. On smaller screens the panel slides up from the bottom. It's built from the reservations the front desk already receives; players get "Not available".
