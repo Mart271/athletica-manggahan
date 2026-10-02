@@ -31,7 +31,7 @@ These exist for testing only. Remove them, and the demo-account panel on the sig
 
 ## Sign-up and password reset
 
-Anyone can create a **player** account from the sign-in page. Front desk accounts can't be created this way. Passwords need at least 8 characters, a letter and a number, can't be a common password and can't contain the username.
+Players sign in with their username or the email on their account. Anyone can create a **player** account from the sign-in page. Front desk accounts can't be created this way. Passwords need at least 8 characters, a letter and a number, can't be a common password and can't contain the username.
 
 "Forgot password?" sends a 6-digit code to the email on the account. The reply is the same whether or not the account exists. Each code expires after 15 minutes, works once, stops working after 5 wrong tries, and is stored hashed. A new request cancels the previous code, and there are at most 3 requests per 15 minutes. A successful reset signs the account out on every device.
 
@@ -66,6 +66,27 @@ The first time someone opens the landing page, a short intro plays (about 3 seco
 ## Front desk floor view
 
 Front desk accounts land on **Floor view**: every court as a 3D tile showing who is on it now (with player markers on the court), who is up next, and whether payment is still due. A timeline shows the floor at any hour today. Selecting a court opens its full schedule for the day, with the usual Check in, Cash received, Review payment and Cancel actions, plus its ratings. On smaller screens the panel slides up from the bottom. It's built from the reservations the front desk already receives; players get "Not available".
+
+Above the floor:
+- **Find a booking** searches today's and upcoming bookings by code, name or mobile number, with Check in, Cash received and Review payment right on each result.
+- **Needs you now** counts payments to verify, cash deposits due, refunds to review and orders to hand over. Each count opens that list.
+
+## Walk-ins
+
+Staff book players who walk up to the counter. On **Availability**, pick open hours on the grid, or tap **Book walk-in** on a free stretch in a court's Floor view panel. Then enter:
+- the player's or team's name, and a mobile number if they give one
+- the player type
+- whether they paid the full amount or the deposit only, and how they paid (a reference number is optional for e-wallets)
+
+A walk-in is confirmed straight away. The payment is recorded as paid and verified by that staff member, and the booking is logged. A walk-in starting within the hour can be checked in at the same time. The desk can also take the hour that's already under way, which online players can't book. Every rule an online booking meets is checked again on the server, including the double-booking guard.
+
+## After booking
+
+- Upcoming bookings show where they are: Held → Paid → Verified → Checked in → Played.
+- The pass and the confirmation screen offer **Add to calendar** (an .ics file with a reminder an hour before) and **Get directions** (Google Maps).
+- Past, cancelled and expired bookings have **Book again**. It picks the same court and hours on the next date they're free. An expired hold offers the same slot again if nobody has taken it.
+- On phones, the bottom bar shows the deposit. Once signed in with details filled in, its button goes straight to review.
+- A guest who taps Add to cart is asked to sign in, and the item is added once they're in.
 
 ## Court ratings
 

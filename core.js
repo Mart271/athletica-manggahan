@@ -506,18 +506,21 @@
     ping: () => null,
 
     async login(ctx, p) {
-      const username = text(p.username, 60).toLowerCase(), password = String(p.password || '').slice(0, 200);
-      const gate = ctx.throttle(username);
+      // Players sign in with their username or the email on the account (usernames can't contain "@").
+      const id = text(p.username, 120).toLowerCase(), password = String(p.password || '').slice(0, 200);
+      const u = id ? ctx.db.users.find(x => (x.username === id || x.email === id) && x.status === 'ACTIVE') : null;
+      // One attempt counter per account, whichever name is typed, so switching to the email doesn't reset it.
+      const key = u ? u.username : id;
+      const gate = ctx.throttle(key);
       if (gate) fail(429, 'throttled', gate);
-      const u = ctx.db.users.find(x => x.username === username && x.status === 'ACTIVE');
       const ok = !!u && await ctx.hasher.verify(password, u.passwordHash);
       if (!ok) {
-        ctx.throttle(username, true);
-        logEvent(ctx.db, ctx.t, null, 'SYSTEM', 'LOGIN_FAILED', 'USER', username || '(blank)', 'Wrong username or password');
+        ctx.throttle(key, true);
+        logEvent(ctx.db, ctx.t, null, 'SYSTEM', 'LOGIN_FAILED', 'USER', id || '(blank)', 'Wrong username, email or password');
         ctx.changed = true;
-        fail(401, 'bad_credentials', 'That username and password don’t match. Check them and try again.');
+        fail(401, 'bad_credentials', 'That username or email and password don’t match. Check them and try again.');
       }
-      ctx.throttle(username, false, true);
+      ctx.throttle(key, false, true);
       ctx.actor = u; ctx.signIn(u);
       log(ctx, 'LOGIN', 'USER', u.id, 'Signed in'); ctx.changed = true;
       return { user: publicUser(u) };
@@ -661,6 +664,67 @@
       db.reservations.push(r);
       if (!u.phone) u.phone = fmtPhone(phone);
       log(ctx, 'CREATE_RESERVATION', 'RESERVATION', r.id, `Held ${courtLabel(db, court.id)} on ${date}, ${hhmm(start)}–${hhmm(end)}`);
+      ctx.changed = true;
+      return { reservationId: r.id };
+    },
+
+    // A walk-in booked at the counter. The player is standing there and pays on the spot, so it's confirmed
+    // straight away. Every rule a player booking meets is checked again here, and the desk is named in the log.
+    'reservation.walkin'(ctx, p) {
+      const staff = needAdmin(ctx), { db, t } = ctx, s = db.settings, { date: today, hour } = local(t);
+      const court = db.courts.find(c => c.id === p.courtId);
+      if (!court) fail(404, 'not_found', 'That court does not exist.');
+      if (court.status !== 'AVAILABLE') fail(409, 'court_closed', `${courtLabel(db, court.id)} is closed for booking right now.`);
+      const date = String(p.date || '');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < today || date > addDays(today, s.bookingWindowDays - 1)) fail(422, 'bad_date', `Choose a date within the next ${s.bookingWindowDays} days.`);
+      const hours = (Array.isArray(p.hours) ? p.hours : []).map(Number).filter(Number.isInteger).sort((a, b) => a - b);
+      if (!hours.length) fail(422, 'no_hours', 'Pick at least one open hour on the grid.');
+      if (hours.length > s.maxHoursPerBooking) fail(422, 'too_long', `Bookings are limited to ${s.maxHoursPerBooking} hours.`);
+      if (hours.some((h, i) => i && h !== hours[i - 1] + 1)) fail(422, 'not_contiguous', 'Pick back-to-back hours on one court.');
+      if (hours[0] < s.openHour || hours[hours.length - 1] >= s.closeHour) fail(422, 'closed_hours', 'Those hours are outside opening times.');
+      // Unlike online bookings, the hour already under way can go to someone standing at the desk.
+      if (date === today && hours[0] < hour) fail(409, 'past', 'That hour has already ended. Pick the current hour or a later one.');
+      const e = {};
+      const name = text(p.customerName, 60);
+      if (name.length < 2) e.name = 'Enter the player’s or team’s name.';
+      const rawPhone = String(p.phone || '').trim(), phone = rawPhone ? normPhone(rawPhone) : '';
+      if (rawPhone && !isPhone(phone)) e.phone = 'Enter a PH mobile number, like 0917 123 4567, or leave it blank.';
+      const type = PLAYER_TYPES[p.playerType] ? p.playerType : null;
+      if (!type) e.playerType = 'Choose a player type.';
+      let teamName = '', headcount = null;
+      if (type === 'TEAM') {
+        const max = sportOf(db, court).maxPlayers;
+        teamName = text(p.teamName, 60);
+        headcount = Number(p.headcount);
+        if (!teamName) e.teamName = 'Enter the team or league name.';
+        if (!Number.isInteger(headcount) || headcount < 2 || headcount > max) e.headcount = `Enter a whole number of players from 2 to ${max}.`;
+      }
+      const collect = ['FULL', 'DEPOSIT'].includes(p.collect) ? p.collect : null;
+      if (!collect) e.collect = 'Choose how much was paid at the desk.';
+      const method = METHODS.includes(p.method) ? p.method : null;
+      if (!method) e.method = 'Choose how they paid.';
+      let ref = '';
+      if (method && method !== 'CASH' && String(p.referenceNumber || '').trim()) {
+        ref = String(p.referenceNumber).replace(/[\s-]/g, '').toUpperCase();
+        if (!/^[A-Z0-9]{6,20}$/.test(ref)) e.ref = 'Reference numbers are 6 to 20 letters or digits, or leave it blank.';
+      }
+      const start = hours[0], end = hours[hours.length - 1] + 1;
+      const checkInNow = !!p.checkInNow;
+      if (checkInNow && !(date === today && start <= hour + 1)) e.checkin = 'Check-in now is only for bookings starting within the hour.';
+      if (Object.keys(e).length) throw fieldError(e);
+      // Same double-booking guard as online holds.
+      for (let h = start; h < end; h++) if (occupant(db, court.id, date, h)) fail(409, 'slot_taken', 'Someone just booked part of this slot. Pick another time.');
+      const r = newReservation(db, t, { courtId: court.id, date, start, end, customerName: name, customerPhone: phone ? fmtPhone(phone) : '', playerType: type, teamName, headcount,
+        source: 'WALK_IN', status: 'CONFIRMED', paymentStatus: 'PAID' });
+      const amount = collect === 'FULL' ? r.totalPrice : r.depositRequired;
+      if (collect === 'FULL') r.remainingBalance = 0;
+      const pay = newPayment(db, t, { reservationId: r.id, method, amount, depositAmount: r.depositRequired, status: 'PAID', referenceNumber: ref,
+        verifiedAt: iso(t), verifiedBy: staff.id, note: 'Collected at the front desk' });
+      r.paymentId = pay.id;
+      if (checkInNow) { r.status = 'CHECKED_IN'; r.checkInStatus = 'CHECKED_IN'; r.checkedInAt = iso(t); }
+      db.reservations.push(r);
+      db.payments.push(pay);
+      log(ctx, 'CREATE_WALK_IN', 'RESERVATION', r.id, `Walk-in ${name}: ${courtLabel(db, court.id)} on ${date}, ${hhmm(start)}–${hhmm(end)}; ${method} ${peso(amount)} collected (${collect === 'FULL' ? 'full amount' : 'deposit'})${checkInNow ? '; checked in' : ''}`);
       ctx.changed = true;
       return { reservationId: r.id };
     },

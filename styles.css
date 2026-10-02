@@ -993,8 +993,11 @@ textarea[aria-invalid="true"],select[aria-invalid="true"]{border-color:var(--bad
 .n-msg{display:block;font-size:.84rem;color:var(--muted);line-height:1.4;margin-top:2px}
 
 /* Sign in */
-.auth{display:grid;grid-template-columns:minmax(0,420px) minmax(0,1fr);gap:40px;align-items:start;padding-top:10px}
-@media (max-width:860px){.auth{grid-template-columns:1fr;gap:24px}.auth-side{order:-1}}
+.auth{display:grid;grid-template-columns:minmax(0,420px) minmax(0,1fr);grid-template-areas:"form side" "form extra";grid-template-rows:auto 1fr;gap:0 40px;align-items:start;padding-top:10px}
+.auth-side{grid-area:side}.auth-form{grid-area:form}.auth-extra{grid-area:extra}
+@media (max-width:860px){.auth{grid-template-columns:1fr;grid-template-areas:"side" "form" "extra";gap:20px}
+  /* Phones get to the form fast: the brand stays, the long description goes. */
+  .auth-side>.muted{display:none}.auth-title{font-size:2rem;margin:8px 0 4px}.auth-slogan{margin-bottom:0}}
 .auth-form .btn{margin-top:6px}
 .auth-title{font-size:clamp(2.2rem,6vw,4.6rem);margin:14px 0 10px}
 .auth-slogan{font-stretch:125%;font-weight:900;font-size:clamp(1.1rem,2.4vw,1.6rem);text-transform:uppercase;color:var(--red);margin-bottom:14px}
@@ -1345,3 +1348,53 @@ html.intro-hold .hero *{animation-play-state:paused!important}
 .xs.more-l::before,.xs.more-r::after{opacity:1}
 .xs-tabs{margin-bottom:22px}
 .xs-tabs .atabs{margin-bottom:0}
+
+/* ---------- Sign-in pages: switch between sign in and sign up at the top of the card ---------- */
+.auth-switch{margin:0 0 14px;padding:10px 12px;background:var(--panel-2);border-left:4px solid var(--red);font-size:.9rem}
+.auth-switch .linkbtn{padding:4px 0}
+.auth-extra .demo-accts{margin-top:0}
+@media (min-width:861px){.auth-extra{margin-top:22px}}
+a.btn{text-decoration:none}
+
+/* ---------- Booking progress on live bookings ---------- */
+.bk-steps{list-style:none;display:flex;flex-wrap:wrap;gap:4px;margin:10px 0 2px;padding:0;counter-reset:st}
+.bk-steps li{flex:1 1 0;min-width:56px;padding:6px 0 0;border-top:4px solid var(--line);color:var(--muted);font:700 .58rem/1.3 var(--mono);letter-spacing:.1em;text-transform:uppercase}
+.bk-steps li.done{border-top-color:var(--good);color:var(--fg)}
+.bk-steps li.now{border-top-color:var(--red);color:var(--fg)}
+.bk-steps li.now.stuck{border-top-color:var(--bad)}
+
+/* ---------- Plan your visit ---------- */
+.plan-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+
+/* ---------- Floor view: find a booking, and what needs the desk ---------- */
+.desk-top{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;margin:4px 0 18px;align-items:start}
+@media (max-width:860px){.desk-top{grid-template-columns:minmax(0,1fr)}}
+.desk-find,.needs{border:var(--bw) solid var(--line);background:var(--panel);padding:14px 16px;box-shadow:var(--hard-sm);min-width:0}
+.desk-find h2,.needs h2{margin:0 0 10px;font-size:.66rem}
+.desk-find input{width:100%}
+.find-hint,.needs-clear{margin-top:10px;font-size:.86rem;color:var(--muted)}
+.needs-clear strong{color:var(--fg)}
+.find-list{list-style:none;margin:10px 0 0;padding:0}
+.find-item{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:8px 12px;padding:10px 0;border-top:1px solid var(--hair)}
+.find-item strong{margin-right:8px}
+.find-item .mono{font-size:.72rem;color:var(--muted)}
+.find-item p{font-size:.82rem;margin:2px 0 6px}
+.find-item .cell-badges{flex-direction:row;flex-wrap:wrap}
+.find-item .row-actions{flex-wrap:wrap}
+.needs-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.need{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:4px 10px;padding:10px 12px;border:var(--bw) solid var(--line);background:var(--panel-2);color:var(--fg);
+  text-align:left;cursor:pointer;font:inherit;transition:background-color var(--t),transform var(--t)}
+.need strong{font-stretch:112%;font-weight:900;font-size:1.5rem;line-height:1;color:var(--red)}
+.need span{font:700 .62rem/1.3 var(--mono);letter-spacing:.1em;text-transform:uppercase}
+.need b{color:var(--red)}
+.need:hover{background:var(--fg);color:var(--inv-fg)}
+.need:hover strong,.need:hover b{color:var(--red)}
+@media (prefers-reduced-motion:no-preference){.need:hover{transform:translate(-2px,-2px)}}
+
+/* ---------- Walk-in form ---------- */
+.walkin{display:grid;gap:12px}
+.walkin h3{margin:0;font-size:1rem;text-transform:uppercase;letter-spacing:.02em;border-bottom:var(--bw) solid var(--line);padding-bottom:6px}
+.walkin .field,.walkin fieldset{margin:0}
+.types.one{grid-template-columns:1fr}
+.dp-slot.free .row-actions{margin-top:6px}
+.auth-form .notice{margin:0 0 16px}

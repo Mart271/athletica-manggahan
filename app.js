@@ -29,6 +29,8 @@
   const mmss = ms => { const s = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(s / 60) + ':' + pad(s % 60); };
   const msUntil = ts => (ts ? Date.parse(ts) - Date.now() : 0);
   const isPast = (date, h) => { const f = fac(); return date < f.date || (date === f.date && h <= f.hour); };
+  // For a walk-in, the hour that has started is still bookable; it has passed only once it ends.
+  const gone = (date, h) => { if (!isAdmin()) return isPast(date, h); const f = fac(); return date < f.date || (date === f.date && h < f.hour); };
   const reduceMotion = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   const isPhoneNav = () => !!(window.matchMedia && window.matchMedia('(max-width: 759px)').matches);
   const mq = window.matchMedia ? window.matchMedia('(max-width: 720px)') : null;
@@ -109,7 +111,8 @@
     login: { username: '', password: '', err: '', busy: false }, profile: null, profileErr: {},
     signup: blankSignup(), reset: blankReset(),
     shopCat: 'all', shopQ: '', shopSort: 'featured', shopQty: {}, lastOrder: null,
-    adminTab: 'schedule', payFilter: 'review', refundFilter: 'review', logFilter: '', custQ: '', q: '', setErr: {}, setDraft: null, courtErr: {}
+    adminTab: 'schedule', payFilter: 'review', refundFilter: 'review', logFilter: '', custQ: '', q: '', setErr: {}, setDraft: null, courtErr: {},
+    deskQ: '', walkin: blankWalkin(), pendingAdd: null
   };
   function setView(v) {
     const was = V && V.me ? V.me.id : null;
@@ -133,6 +136,7 @@
   const homeView = () => (isAdmin() ? 'desk' : 'home');
   const isPlayer = () => !!(me() && me().role === 'USER');
   function blankSignup() { return { firstName: '', lastName: '', username: '', email: '', phone: '', password: '', confirmPassword: '', err: {}, busy: false, show: false }; }
+  function blankWalkin() { return { name: '', phone: '', type: 'INDIVIDUAL', teamName: '', headcount: '', collect: 'FULL', method: 'CASH', ref: '', checkin: false, err: {}, busy: false }; }
   function blankReset() { return { step: 'request', identifier: '', code: '', newPassword: '', confirmPassword: '', err: {}, busy: false, show: false, message: '', devMail: null, sentAt: 0 }; }
   function blankDraft() { return { method: '', ref: '', proof: '', proofName: '', err: {}, busy: false, name: me() ? me().firstName + ' ' + me().lastName : '', mobile: me() ? me().phone : '' }; }
   S.drafts = { res: blankDraft(), cart: blankDraft() };
@@ -753,7 +757,7 @@
     const s = IX.sport[S.sport], courts = IX.courtsBySport[S.sport], sel = S.sel;
     if (sel.court && (!IX.court[sel.court] || IX.court[sel.court].sportId !== S.sport)) clearSel();
     else if (sel.court && !courtOpen(IX.court[sel.court])) { const n = IX.court[sel.court].name; clearSel(); S.notice = `${n} was just closed. Choose another ${s.unit}.`; }
-    else if (sel.court && sel.hours.some(h => isPast(S.date, h) || cellOf(S.date, sel.court, h))) clearHours();
+    else if (sel.court && sel.hours.some(h => gone(S.date, h) || cellOf(S.date, sel.court, h))) clearHours();
     const has = !!(S.sel.court && S.sel.hours.length), narrow = isNarrow(), picker = !isAdmin();
     const chips = sportsList().map(x => `<button type="button" class="chip" data-action="sport" data-sport="${x.id}" aria-pressed="${x.id === S.sport}">${esc(x.name)}</button>`).join('');
     let openCount = 0;
@@ -761,7 +765,7 @@
       const key = c.id + '|' + h, occ = cellOf(S.date, c.id, h);
       let st = 'free';
       if (!courtOpen(c)) st = 'closed';
-      else if (isPast(S.date, h)) st = 'past';
+      else if (gone(S.date, h)) st = 'past';
       else if (occ) st = occ.mine ? 'mine' : occ.s;
       else if (S.sel.court === c.id && S.sel.hours.includes(h)) st = 'sel';
       if (st === 'free' || st === 'sel') openCount++;
@@ -803,10 +807,10 @@
       ? `<strong>${esc(courtLabel(c.id))}</strong><p>${esc(fmtDate(S.date))}, ${fmtRange(start, end)} (${plural(hrs.length, 'hour')})</p>${btn('clear', 'Clear times', 'btn-ghost')}`
       : c && picker ? `<strong>${esc(courtLabel(c.id))}</strong><p>Now pick a start time. Tap the next hour to extend, up to ${V.settings.maxHoursPerBooking} hours.</p>`
       : picker ? `<strong>No ${esc(s.unit)} picked yet</strong><p>Choose a ${esc(s.unit)} above, then pick up to ${V.settings.maxHoursPerBooking} back-to-back hours.</p>`
-      : `<strong>No slot picked yet</strong><p>Tap an open hour on the grid. Tap the hour before or after it to extend, up to ${V.settings.maxHoursPerBooking} hours.</p>`;
+      : `<strong>No slot picked yet</strong><p>Tap an open hour on the grid${isAdmin() ? ' to book a walk-in' : ''}. Tap the hour before or after it to extend, up to ${V.settings.maxHoursPerBooking} hours.</p>`;
     let panel;
     if (isAdmin()) {
-      panel = `<div class="sel-info">${selInfo}</div><p class="notice">Front desk accounts see availability here. Players book from their own accounts, so every reservation stays tied to the person who made it.</p>`;
+      panel = `<div class="sel-info">${selInfo}</div>${has ? walkinFormHTML(c, hrs, start) : '<p class="notice">Pick open hours to book a walk-in at the counter. Players booking online use their own accounts.</p>'}`;
     } else if (!me()) {
       panel = `<div class="sel-info">${selInfo}</div><div class="price" id="price" aria-live="polite">${priceHTML()}</div>
         <button type="button" class="btn btn-primary block" data-action="to-login">Sign in to reserve</button>
@@ -832,7 +836,7 @@
     return `
       <div class="page-head"><p class="hud"><span class="tick"></span>${isAdmin() ? 'Availability' : 'Reservation'}</p>
         <h1 class="page-title" tabindex="-1">${isAdmin() ? 'Court availability' : 'Book a slot'}</h1>
-        <p>${isAdmin() ? `Every ${esc(s.unit)} and hour at a glance.` : `Choose a sport, a date and a ${esc(s.unit)}, then pick up to ${V.settings.maxHoursPerBooking} back-to-back hours.`}</p></div>
+        <p>${isAdmin() ? `Every ${esc(s.unit)} and hour at a glance. Pick open hours to book a walk-in.` : `Choose a sport, a date and a ${esc(s.unit)}, then pick up to ${V.settings.maxHoursPerBooking} back-to-back hours.`}</p></div>
       <div class="book"><div>
         <div class="chips" role="group" aria-label="Sport">${chips}</div>
         ${dayStrip(S.date, 'date')}
@@ -854,9 +858,14 @@
         ${pc ? reviewsHTML(pc) : ''}
       </div>
       <aside class="panel" aria-labelledby="sum-h"><h2 id="sum-h">Your reservation</h2>${panel}</aside></div>
-      ${has && !isAdmin() ? `<div class="bar-spacer"></div><div class="actionbar" id="actionbar">
-        <div><strong>${esc(courtLabel(c.id))}</strong><p>${esc(fmtDate(S.date))}, ${fmtRange(start, end)}</p></div>
-        <button type="button" class="btn btn-primary" data-action="to-form">${me() ? 'Enter details' : 'Sign in'}</button></div>` : ''}`;
+      ${has ? `<div class="bar-spacer"></div><div class="actionbar" id="actionbar">
+        <div><strong>${esc(courtLabel(c.id))}</strong><p>${esc(fmtDate(S.date))}, ${fmtRange(start, end)}${isAdmin() ? '' : ` · ${peso(quote(c, hrs.length, S.form.type).deposit)} deposit`}</p></div>
+        <button type="button" class="btn btn-primary" data-action="to-form">${isAdmin() ? 'Walk-in details' : !me() ? 'Sign in' : detailsReady() ? 'Review booking' : 'Enter details'}</button></div>` : ''}`;
+  }
+  function syncBar() {
+    const b = $('#actionbar [data-action="to-form"]'), p = $('#actionbar p'), c = selCourt();
+    if (b && isPlayer()) b.textContent = detailsReady() ? 'Review booking' : 'Enter details';
+    if (p && c && S.sel.hours.length) p.textContent = `${fmtDate(S.date)}, ${fmtRange(S.sel.hours[0], S.sel.hours[S.sel.hours.length - 1] + 1)} · ${peso(quote(c, S.sel.hours.length, S.form.type).deposit)} deposit`;
   }
   function clickSlot(court, h) {
     const sel = S.sel, max = V.settings.maxHoursPerBooking;
@@ -875,6 +884,71 @@
     delete S.errors.slot;
     S.focusKey = court + '|' + h;
     render();
+  }
+  // The same checks reserve() makes, without showing errors: is the booking form ready to submit?
+  function detailsReady() {
+    const f = S.form, s = IX.sport[S.sport];
+    if (!/^09\d{9}$/.test(normPhone(f.phone))) return false;
+    if (f.type !== 'TEAM') return true;
+    const n = Number(f.headcount);
+    return !!f.teamName.trim() && Number.isInteger(n) && n >= 2 && n <= s.maxPlayers;
+  }
+  /* ---------- Walk-ins (front desk) ---------- */
+  const wkErr = k => (S.walkin.err[k] ? `<p class="ferr" id="err-wk-${k}">${esc(S.walkin.err[k])}</p>` : '');
+  const wkInv = k => (S.walkin.err[k] ? ` aria-invalid="true" aria-describedby="err-wk-${k}"` : '');
+  const startsSoon = start => S.date === today() && start <= fac().hour + 1;
+  function walkinFormHTML(c, hrs, start) {
+    const W = S.walkin, s = IX.sport[c.sportId], q = quote(c, hrs.length, W.type), t = PLAYER_TYPES[W.type];
+    return `<form id="walkinForm" class="walkin" novalidate aria-labelledby="wk-h"><h3 id="wk-h">Walk-in booking</h3>
+      ${W.err.form ? `<p class="notice err" id="err-wk-form" tabindex="-1" role="alert">${esc(W.err.form)}</p>` : ''}
+      <div class="field"><label for="wk-name">Player or team name</label><input id="wk-name" name="name" data-wk="1" type="text" maxlength="60" autocomplete="off" value="${esc(W.name)}"${wkInv('name')}>${wkErr('name')}</div>
+      <div class="field"><label for="wk-phone">Mobile number <span class="muted">(optional)</span></label><input id="wk-phone" name="phone" data-wk="1" type="tel" inputmode="numeric" autocomplete="off" placeholder="09XX XXX XXXX" value="${esc(W.phone)}"${wkInv('phone')}>${wkErr('phone')}</div>
+      <fieldset><legend>Player type</legend><div class="types">${Object.keys(PLAYER_TYPES).map(k => `<label><input type="radio" name="wk-type" value="${k}" ${W.type === k ? 'checked' : ''}>${PLAYER_TYPES[k].label}</label>`).join('')}</div>
+        ${t.discount ? `<p class="hint">${esc(t.label)} rate: check a valid ID.</p>` : ''}${wkErr('playerType')}</fieldset>
+      ${W.type === 'TEAM' ? `<div class="field"><label for="wk-teamName">Team or league name</label><input id="wk-teamName" name="teamName" data-wk="1" type="text" maxlength="60" value="${esc(W.teamName)}"${wkInv('teamName')}>${wkErr('teamName')}</div>
+        <div class="field"><label for="wk-headcount">Number of players</label><input id="wk-headcount" name="headcount" data-wk="1" type="number" min="2" max="${s.maxPlayers}" step="1" value="${esc(W.headcount)}"${wkInv('headcount')}>${wkErr('headcount')}</div>` : ''}
+      <div class="price"><div><span>${peso(c.hourlyRate)} × ${plural(hrs.length, 'hour')}</span><span>${peso(q.courtPrice)}</span></div>
+        ${q.disc ? `<div><span>${esc(t.label)} discount (${t.discount}%)</span><span>−${peso(q.disc)}</span></div>` : ''}
+        <div class="total"><span>Court total</span><span>${peso(q.total)}</span></div></div>
+      <fieldset><legend>Paid now at the desk</legend><div class="types one">
+        <label><input type="radio" name="wk-collect" value="FULL" ${W.collect === 'FULL' ? 'checked' : ''}>Full amount, ${peso(q.total)}</label>
+        <label><input type="radio" name="wk-collect" value="DEPOSIT" ${W.collect === 'DEPOSIT' ? 'checked' : ''}>Deposit only, ${peso(q.deposit)} <span class="muted">(${peso(q.balance)} due before play)</span></label></div>${wkErr('collect')}</fieldset>
+      <div class="field"><label for="wk-method">Paid with</label><select id="wk-method" name="method" data-wk="1"${wkInv('method')}>${Core.METHODS.map(m => `<option value="${m}"${W.method === m ? ' selected' : ''}>${esc(METHOD[m].label)}</option>`).join('')}</select>${wkErr('method')}</div>
+      ${W.method !== 'CASH' ? `<div class="field"><label for="wk-ref">Reference number <span class="muted">(optional)</span></label><input id="wk-ref" name="ref" data-wk="1" type="text" inputmode="numeric" autocomplete="off" value="${esc(W.ref)}"${wkInv('ref')}>${wkErr('ref')}</div>` : ''}
+      ${startsSoon(start) ? `<div class="field check"><label><input type="checkbox" name="wk-checkin"${W.checkin ? ' checked' : ''}> Check them in now</label><p class="hint">Checking in means the whole court fee is settled, so collect any balance first.</p>${wkErr('checkin')}</div>` : ''}
+      <button type="submit" class="btn btn-primary block"${W.busy ? ' disabled aria-busy="true"' : ''}>${W.busy ? '<span class="spin" aria-hidden="true"></span>Booking' : 'Book walk-in'}</button>
+      <p class="hint center">Confirmed straight away, with the payment recorded under your name.</p></form>`;
+  }
+  async function bookWalkin() {
+    const W = S.walkin, c = selCourt(), e = {};
+    if (!c || !S.sel.hours.length) { S.errors.slot = 'Pick open hours on the grid first.'; S.focusSel = '#err-slot'; render(); return; }
+    const s = IX.sport[c.sportId], start = S.sel.hours[0];
+    if (W.name.trim().length < 2) e.name = 'Enter the player’s or team’s name.';
+    if (W.phone.trim() && !/^09\d{9}$/.test(normPhone(W.phone))) e.phone = 'Enter a PH mobile number, like 0917 123 4567, or leave it blank.';
+    if (W.type === 'TEAM') {
+      const n = Number(W.headcount);
+      if (!W.teamName.trim()) e.teamName = 'Enter the team or league name.';
+      if (!Number.isInteger(n) || n < 2 || n > s.maxPlayers) e.headcount = 'Enter a whole number from 2 to ' + s.maxPlayers + '.';
+    }
+    W.err = e;
+    if (Object.keys(e).length) { S.focusSel = '#wk-' + Object.keys(e)[0]; render(); return; }
+    W.busy = true; render();
+    const out = await act('reservation.walkin', { courtId: c.id, date: S.date, hours: S.sel.hours, customerName: W.name, phone: W.phone, playerType: W.type, teamName: W.teamName,
+      headcount: W.headcount, collect: W.collect, method: W.method, referenceNumber: W.method === 'CASH' ? '' : W.ref, checkInNow: W.checkin && startsSoon(start) });
+    W.busy = false;
+    if (!out.ok) {
+      const code = out.error.code;
+      if (out.error.fields) { W.err = out.error.fields; const k = Object.keys(W.err)[0]; S.focusSel = { checkin: '[name="wk-checkin"]', playerType: '[name="wk-type"]', collect: '[name="wk-collect"]' }[k] || '#wk-' + k; }
+      else if (['slot_taken', 'past', 'court_closed'].includes(code)) { if (code === 'court_closed') clearSel(); else clearHours(); S.errors.slot = out.error.message; S.focusSel = '#err-slot'; }
+      else { W.err = { form: out.error.message }; S.focusSel = '#err-wk-form'; }
+      render(); return;
+    }
+    const id = out.data.reservationId;
+    S.walkin = blankWalkin();
+    clearHours();
+    render();
+    toast(`Walk-in booked. Code ${id}.`);
+    showDetails(id);
   }
   async function reserve() {
     const f = S.form, s = IX.sport[S.sport], e = {};
@@ -1077,7 +1151,7 @@
     if (!r) return coHead('Nothing on hold') + `<div class="empty"><h2>No reservation is waiting for payment.</h2><p>Pick a slot to start one.</p>${btn('view', 'Find a court', 'btn-primary', { view: 'book' })}</div>`;
     if (r.status === 'EXPIRED' || r.status === 'CANCELLED') {
       return coHead('This slot is no longer held') + `<div class="banner wait"><div><h2>${r.status === 'EXPIRED' ? 'The hold ran out' : 'Reservation cancelled'}</h2>
-        <p>This slot is no longer held for you. Please choose another time, or the same one if nobody has taken it yet.</p></div>${btn('rebook', 'Choose a time', 'btn-primary', { id: r.id })}</div>`;
+        <p>This slot is no longer held for you. If nobody has taken it yet, you can pick it up again.</p></div>${btn('rebook', 'Try the same time again', 'btn-primary', { id: r.id })}</div>`;
     }
     if (S.co.step === 'done' || r.status !== 'PENDING_PAYMENT') return resultHTML(r);
     const left = msUntil(r.holdExpiresAt), pay = r.payment;
@@ -1132,7 +1206,32 @@
         <div><span>Balance at desk</span><strong>${peso(r.remainingBalance)}</strong></div>
       </div>
       <h2 class="sub-h">What happens next</h2><ol class="next-list">${next.map(x => `<li>${x}</li>`).join('')}</ol>
+      <div class="plan-row">${planHTML(r)}</div>
       <div class="co-actions">${btn('view', 'Book another slot', '', { view: 'book' })}${btn('view', 'View my reservations', 'btn-primary', { view: 'mine' })}</div></div>`;
+  }
+  // Book again: the same court and hours on the next date they're free (the original date first, if it's still ahead).
+  function rebook(id) {
+    const r = IX.res[id], c = r && IX.court[r.courtId];
+    if (!r || !c) return;
+    const hours = [];
+    for (let h = r.start; h < r.end && hours.length < V.settings.maxHoursPerBooking; h++) hours.push(h);
+    const free = date => hours.every(h => !isPast(date, h) && !cellOf(date, c.id, h));
+    let date = null;
+    if (courtOpen(c)) for (let i = 0; i < V.settings.bookingWindowDays && !date; i++) { const d = addDays(r.date > today() ? r.date : today(), i); if (d <= addDays(today(), V.settings.bookingWindowDays - 1) && free(d)) date = d; }
+    S.sport = c.sportId; S.co = null; S.errors = {};
+    const when = fmtRange(hours[0], hours[hours.length - 1] + 1);
+    if (date) {
+      S.date = date; S.sel = { court: c.id, hours };
+      S.pendingNotice = `${courtLabel(c.id)}, ${when} is free on ${fmtDate(date)}. ${me() ? 'Check your details, then review.' : 'Sign in to hold it.'} Pick another date above to change it.`;
+    } else if (courtOpen(c)) {
+      const next = firstOpenDateFor(c);
+      S.date = next || today(); S.sel = { court: c.id, hours: [] };
+      S.pendingNotice = `${courtLabel(c.id)} isn’t free at ${when} this week. Pick another time below.`;
+    } else {
+      S.date = today(); S.sel = { court: null, hours: [] };
+      S.pendingNotice = `${courtLabel(c.id)} is ${c.status === 'MAINTENANCE' ? 'closed for maintenance' : 'unavailable'} right now. Choose another ${IX.sport[c.sportId].unit}.`;
+    }
+    go('book');
   }
   function openCheckout(id) {
     const r = IX.res[id];
@@ -1202,6 +1301,16 @@
     if (!r.canCancel || !pol.refundEligible || !pol.refundPercentage || !r.payment || !['PAID', 'AWAITING_VERIFICATION'].includes(r.payment.status)) return '';
     return msUntil(r.refundDeadline) > 0 ? `Refund-eligible cancellation until ${fmtStamp(r.refundDeadline)}.` : 'Cancelling now is not refunded under the current cancellation policy.';
   }
+  // Where a live booking is: Held → Paid → Verified → Checked in → Played.
+  const STAGES = ['Held', 'Paid', 'Verified', 'Checked in', 'Played'];
+  function timelineHTML(r) {
+    if (!LIVE.includes(r.status)) return '';
+    const done = { PENDING_PAYMENT: 1, PAYMENT_VERIFICATION: 2, CONFIRMED: 3, CHECKED_IN: 4 }[r.status];
+    const stuck = r.status === 'PENDING_PAYMENT' && r.paymentStatus === 'FAILED';
+    return `<ol class="bk-steps" aria-label="Booking progress">${STAGES.map((l, i) => i < done
+      ? `<li class="done"><span class="sr-only">Done: </span>${l}</li>`
+      : i === done ? `<li class="now${stuck ? ' stuck' : ''}" aria-current="step">${l}${stuck ? '<span class="sr-only">, needs attention</span>' : ''}</li>` : `<li>${l}</li>`).join('')}</ol>`;
+  }
   function reservationCard(r) {
     const dt = parseDate(r.date), p = r.payment, can = r.cancellation, acts = [btn('details', 'View', '', { id: r.id })];
     if (r.status === 'PENDING_PAYMENT') acts.push(btn('pay-open', r.paymentStatus === 'PENDING' ? 'Pay online instead' : r.paymentStatus === 'FAILED' ? 'Resubmit payment' : 'Complete payment', 'btn-primary', { id: r.id }));
@@ -1209,6 +1318,7 @@
     if (p && ['PAID', 'REFUNDED', 'PARTIALLY_REFUNDED'].includes(p.status)) acts.push(btn('receipt', 'Receipt', 'btn-ghost', { id: r.id }));
     if (r.canCancel) acts.push(btn('cancel', 'Cancel booking', 'btn-ghost', { id: r.id }));
     if (r.canRate) acts.push(btn('rate', r.rating ? 'Edit rating' : 'Rate this court', r.rating ? 'btn-ghost' : 'btn-primary', { id: r.id }));
+    if (['COMPLETED', 'CANCELLED', 'EXPIRED'].includes(r.status)) acts.push(btn('rebook', 'Book again', '', { id: r.id }));
     let note = '';
     if (r.status === 'PENDING_PAYMENT' && r.paymentStatus === 'UNPAID') note = `Slot held for <strong data-until="${esc(r.holdExpiresAt)}">${mmss(msUntil(r.holdExpiresAt))}</strong>. Pay the ${peso(r.depositRequired)} deposit to keep it.`;
     else if (r.status === 'PENDING_PAYMENT' && r.paymentStatus === 'PENDING') note = `Pay ${peso(p.amount)} at the front desk by ${fmtClock(r.holdExpiresAt)}. The slot stays pending until staff verify the deposit.`;
@@ -1223,6 +1333,7 @@
         <div class="bk-badges">${resBadge(r)}${payBadge(r.paymentStatus)}${can ? refundBadge(can.refundStatus) : ''}</div>
         <h3>${esc(courtLabel(r.courtId))}</h3>
         <p>${fmtRange(r.start, r.end)} · ${esc(PLAYER_TYPES[r.playerType].label)} · Court ${peso(r.totalPrice)}${r.addonTotal ? ' · Snacks ' + peso(r.addonTotal) : ''}</p>
+        ${timelineHTML(r)}
         <p>Code <span class="ref">${esc(r.id)}</span></p>
         ${note ? `<p class="bk-note">${note}</p>` : ''}
         ${r.rating ? `<p class="bk-rated">You rated this ${starRow(r.rating.stars)}${r.rating.hidden ? ' · hidden by the front desk' : r.canRate ? ` · you can edit it until ${esc(fmtDate(r.rating.editableUntil.slice(0, 10)))}` : ''}</p>` : ''}
@@ -1323,7 +1434,7 @@
         ${row('Deposit paid', peso(r.depositRequired))}${r.addonTotal ? row('Drinks and snacks', peso(r.addonTotal)) : ''}${row('Remaining balance', r.status === 'CHECKED_IN' ? 'Settled' : peso(r.remainingBalance))}</dl>
       <div class="bc" aria-hidden="true">${bars}</div>
       <p class="t-note">${r.status === 'CHECKED_IN' ? 'Checked in. Enjoy the game.' : `Pay the ${peso(r.remainingBalance)} balance at the front desk before play.`}${PLAYER_TYPES[r.playerType].discount ? ' Bring a valid ID for your discount.' : ''}</p>
-      <div class="t-actions">${btn('receipt', 'Receipt', 'btn-ghost', { id: r.id })}<button type="button" class="btn btn-primary" data-action="close">Done</button></div>`);
+      <div class="t-actions">${r.status === 'CHECKED_IN' ? '' : planHTML(r)}${btn('receipt', 'Receipt', 'btn-ghost', { id: r.id })}<button type="button" class="btn btn-primary" data-action="close">Done</button></div>`);
     const seen = 'athletica-celebrated';
     const done = (ls.get(seen) || '').split(',');
     if (!done.includes(r.id)) { ls.set(seen, done.concat(r.id).slice(-50).join(',')); confetti(); }
@@ -1352,6 +1463,28 @@
       <div class="t-actions">${btn('copy-receipt', 'Copy', 'btn-ghost', { id: r.id })}${isFramed() ? '' : btn('download-receipt', 'Download', 'btn-ghost', { id: r.id })}
         <button type="button" class="btn btn-primary" data-action="close">Done</button></div></div>`);
   }
+  // A calendar file for the booking, with a reminder an hour before. Times are the facility's (UTC+8).
+  const icsStamp = ms => new Date(ms).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  const icsText = v => String(v).replace(/[\\;,]/g, m => '\\' + m).replace(/\n/g, '\\n');
+  function downloadIcs(id) {
+    const r = IX.res[id], st = V.settings;
+    if (!r) return;
+    const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Athletica Manggahan//Bookings//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'BEGIN:VEVENT',
+      'UID:' + r.id + '@athletica-manggahan', 'DTSTAMP:' + icsStamp(Date.now()),
+      'DTSTART:' + icsStamp(Core.util.slotMs(r.date, r.start)), 'DTEND:' + icsStamp(Core.util.slotMs(r.date, r.end)),
+      'SUMMARY:' + icsText(courtLabel(r.courtId) + ' · ' + st.brandName), 'LOCATION:' + icsText(st.facilityName + ', Pasig City'),
+      'DESCRIPTION:' + icsText(`Reservation ${r.id}. Show this code at the front desk.` + (r.remainingBalance ? ` Balance due at the desk: ${peso(r.remainingBalance)}.` : '')),
+      'BEGIN:VALARM', 'TRIGGER:-PT1H', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsText(courtLabel(r.courtId) + ' in 1 hour'), 'END:VALARM', 'END:VEVENT', 'END:VCALENDAR'];
+    try {
+      const url = URL.createObjectURL(new Blob([lines.join('\r\n') + '\r\n'], { type: 'text/calendar' })), a = document.createElement('a');
+      a.href = url; a.download = r.id + '.ics';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast('Calendar file downloaded. Open it to add the booking.');
+    } catch (e) { toast('Download blocked. Add the booking to your calendar by hand.'); }
+  }
+  const mapsUrl = () => 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(V.settings.facilityName + ', Pasig City');
+  const planHTML = r => `${btn('ics', 'Add to calendar', 'btn-ghost', { id: r.id })}<a class="btn btn-sm btn-ghost" href="${esc(mapsUrl())}" target="_blank" rel="noopener">Get directions<span class="sr-only"> (opens Google Maps in a new tab)</span></a>`;
   function downloadReceipt(id) {
     const r = IX.res[id];
     if (!r) return;
@@ -1528,7 +1661,11 @@
     refreshShop(`[data-action="qty"][data-id="${id}"][data-step="${step}"]:not(:disabled)`);
   }
   async function addToCart(id) {
-    if (!me()) { S.next = S.view; S.loginNotice = 'Sign in to add items to your cart.'; go('login'); return; }
+    if (!me()) {
+      // Remember what they reached for, and add it once they're signed in.
+      S.pendingAdd = { id, qty: S.shopQty[id] || 1 };
+      S.next = S.view; S.loginNotice = `Sign in and we’ll add ${IX.product[id].name} to your cart.`; go('login'); return;
+    }
     if (!isPlayer()) return;
     const p = IX.product[id], add = Math.min(S.shopQty[id] || 1, p.stock - cartQty(id));
     if (add <= 0) { toast(p.stock ? 'All ' + p.stock + ' in stock are already in your cart.' : p.name + ' is out of stock.'); return; }
@@ -1628,21 +1765,22 @@
     if (me()) return `<div class="page-head"><p class="hud"><span class="tick"></span>Account</p><h1 class="page-title" tabindex="-1">You're signed in</h1><p>Signed in as ${esc(me().username)}.</p></div>
       <div class="empty">${btn('view', isAdmin() ? 'Open front desk' : 'My reservations', 'btn-primary', { view: isAdmin() ? 'admin' : 'mine' })} ${btn('logout', 'Sign out')}</div>`;
     return `<div class="auth">
-      <form id="loginForm" class="sheet auth-form" novalidate aria-labelledby="login-h"><h2 id="login-h">Sign in</h2><div class="sheet-in">
-        ${S.loginNotice ? `<p class="notice">${esc(S.loginNotice)}</p>` : ''}
-        ${L.err ? `<p class="notice err" id="err-login" tabindex="-1" role="alert">${esc(L.err)}</p>` : ''}
-        <div class="field"><label for="lg-user">Username</label><input id="lg-user" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" value="${esc(L.username)}"${L.err ? ' aria-describedby="err-login"' : ''}></div>
-        <div class="field"><label for="lg-pass">Password</label><div class="pw"><input id="lg-pass" name="password" type="${L.show ? 'text' : 'password'}" autocomplete="current-password" value="${esc(L.password)}">
-          <button type="button" class="linkbtn" data-action="pw-toggle" aria-pressed="${!!L.show}">${L.show ? 'Hide' : 'Show'}<span class="sr-only"> password</span></button></div></div>
-        <button type="submit" class="btn btn-primary block"${L.busy ? ' disabled aria-busy="true"' : ''}>${L.busy ? '<span class="spin" aria-hidden="true"></span>Signing in' : 'Sign in'}</button>
-        <div class="auth-links"><button type="button" class="linkbtn" data-action="to-reset">Forgot password?</button>
-          <span>New here? <button type="button" class="linkbtn strong" data-action="auth-go" data-view="signup">Sign up</button></span></div>
-      </div></form>
-      <aside class="auth-side">
+      <div class="auth-side">
         <p class="hud"><span class="tick"></span>${esc(s.facilityName)}</p>
         <h1 class="page-title auth-title" tabindex="-1">${esc(s.brandName)}</h1>
         <p class="auth-slogan">${esc(s.slogan)}</p>
-        <p class="muted">Players sign in to reserve courts, pay deposits, cancel bookings and order from the athlete shop. Front desk staff sign in to verify payments, check players in and review refunds.</p>
+        <p class="muted">Players sign in to reserve courts, pay deposits, cancel bookings and order from the athlete shop. Front desk staff sign in to verify payments, check players in and review refunds.</p></div>
+      <form id="loginForm" class="sheet auth-form" novalidate aria-labelledby="login-h"><h2 id="login-h">Sign in</h2><div class="sheet-in">
+        <p class="auth-switch">New here? <button type="button" class="linkbtn strong" data-action="auth-go" data-view="signup">Create an account</button></p>
+        ${S.loginNotice ? `<p class="notice">${esc(S.loginNotice)}</p>` : ''}
+        ${L.err ? `<p class="notice err" id="err-login" tabindex="-1" role="alert">${esc(L.err)}</p>` : ''}
+        <div class="field"><label for="lg-user">Username or email</label><input id="lg-user" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" value="${esc(L.username)}"${L.err ? ' aria-describedby="err-login"' : ''}></div>
+        <div class="field"><label for="lg-pass">Password</label><div class="pw"><input id="lg-pass" name="password" type="${L.show ? 'text' : 'password'}" autocomplete="current-password" value="${esc(L.password)}">
+          <button type="button" class="linkbtn" data-action="pw-toggle" aria-pressed="${!!L.show}">${L.show ? 'Hide' : 'Show'}<span class="sr-only"> password</span></button></div></div>
+        <button type="submit" class="btn btn-primary block"${L.busy ? ' disabled aria-busy="true"' : ''}>${L.busy ? '<span class="spin" aria-hidden="true"></span>Signing in' : 'Sign in'}</button>
+        <div class="auth-links"><button type="button" class="linkbtn" data-action="to-reset">Forgot password?</button></div>
+      </div></form>
+      <aside class="auth-extra" aria-label="Demo accounts">
         <details class="demo-accts" open><summary>Demo accounts, development only</summary>
           <p class="hint">For testing this build. These accounts must not exist in production.</p>
           <dl>
@@ -1669,42 +1807,44 @@
   function renderSignup() {
     if (me()) return signedInNote();
     const F = S.signup;
+    const adding = S.pendingAdd && IX.product[S.pendingAdd.id];
     return `<div class="auth">
+      <div class="auth-side"><p class="hud"><span class="tick"></span>${esc(V.settings.facilityName)}</p>
+        <h1 class="page-title auth-title" tabindex="-1">Join Athletica</h1><p class="auth-slogan">${esc(V.settings.slogan)}</p></div>
       <form id="signupForm" class="sheet auth-form" novalidate aria-labelledby="su-h"><h2 id="su-h">Sign up</h2><div class="sheet-in">
-        ${S.next === 'book' ? '<p class="notice">Sign up to reserve this slot. Your selection is kept.</p>' : S.next === 'cart' || S.next === 'shop' ? '<p class="notice">Sign up to order. Your cart is kept.</p>' : ''}
+        <p class="auth-switch">Have an account? <button type="button" class="linkbtn strong" data-action="auth-go" data-view="login">Sign in</button></p>
+        ${S.next === 'book' ? '<p class="notice">Sign up to reserve this slot. Your selection is kept.</p>' : adding ? `<p class="notice">Sign up and we’ll add ${esc(adding.name)} to your cart.</p>` : S.next === 'cart' || S.next === 'shop' ? '<p class="notice">Sign up to order. Your cart is kept.</p>' : ''}
         ${F.err.form ? `<p class="notice err" id="err-signup-form" tabindex="-1" role="alert">${esc(F.err.form)}</p>` : ''}
         <div class="two-col">${authField('signup', 'firstName', 'First name', 'text', 'given-name')}${authField('signup', 'lastName', 'Last name', 'text', 'family-name')}</div>
-        ${authField('signup', 'username', 'Username', 'text', 'username', { hint: '3 to 30 lowercase letters, numbers, dots, dashes or underscores. You sign in with this.', extra: ' autocapitalize="none" spellcheck="false"' })}
+        ${authField('signup', 'username', 'Username', 'text', 'username', { hint: '3 to 30 lowercase letters, numbers, dots, dashes or underscores. You can sign in with this or your email.', extra: ' autocapitalize="none" spellcheck="false"' })}
         ${authField('signup', 'email', 'Email', 'email', 'email', { hint: 'Password reset codes are sent here.' })}
         ${authField('signup', 'phone', 'Mobile number', 'tel', 'tel', { extra: ' inputmode="numeric" placeholder="09XX XXX XXXX"' })}
         ${authField('signup', 'password', 'Password', 'password', 'new-password', { pw: true, toggle: true, rules: () => S.signup.username })}
         ${authField('signup', 'confirmPassword', 'Confirm password', 'password', 'new-password', { pw: true })}
         <button type="submit" class="btn btn-primary block"${F.busy ? ' disabled aria-busy="true"' : ''}>${F.busy ? '<span class="spin" aria-hidden="true"></span>Signing up' : 'Sign up'}</button>
-        <div class="auth-links"><span>Already have an account? <button type="button" class="linkbtn strong" data-action="auth-go" data-view="login">Sign in</button></span></div>
       </div></form>
-      <aside class="auth-side"><p class="hud"><span class="tick"></span>${esc(V.settings.facilityName)}</p>
-        <h1 class="page-title auth-title" tabindex="-1">Join Athletica</h1><p class="auth-slogan">${esc(V.settings.slogan)}</p>
+      <aside class="auth-extra" aria-label="What you get">
         <ul class="auth-perks"><li>Reserve courts, lanes and fields up to ${V.settings.bookingWindowDays} days ahead.</li><li>Track deposits, cancellations and refunds in one place.</li><li>Order drinks and snacks for pickup at the desk.</li></ul>
         <p class="hint">Player accounts only. Front desk accounts are set up by the facility.</p></aside></div>`;
   }
   function renderReset() {
     const R = S.reset;
-    const side = `<aside class="auth-side"><p class="hud"><span class="tick"></span>Account security</p><h1 class="page-title auth-title" tabindex="-1">Reset password</h1>
-      <ul class="auth-perks"><li>Codes expire after 15 minutes and work once.</li><li>After 5 wrong tries the code stops working.</li><li>Resetting signs your account out on every device.</li></ul></aside>`;
+    const side = `<div class="auth-side"><p class="hud"><span class="tick"></span>Account security</p><h1 class="page-title auth-title" tabindex="-1">Reset password</h1></div>`;
+    const extra = `<aside class="auth-extra" aria-label="How codes work"><ul class="auth-perks"><li>Codes expire after 15 minutes and work once.</li><li>After 5 wrong tries the code stops working.</li><li>Resetting signs your account out on every device.</li></ul></aside>`;
     if (R.step === 'request') {
-      return `<div class="auth"><form id="resetRequestForm" class="sheet auth-form" novalidate aria-labelledby="rs-h"><h2 id="rs-h">Forgot your password?</h2><div class="sheet-in">
+      return `<div class="auth">${side}<form id="resetRequestForm" class="sheet auth-form" novalidate aria-labelledby="rs-h"><h2 id="rs-h">Forgot your password?</h2><div class="sheet-in">
         <p class="lead-hint">Enter your username or the email on your account. We’ll send a 6-digit code to that email.</p>
         ${authField('reset', 'identifier', 'Username or email', 'text', 'username', { extra: ' autocapitalize="none" spellcheck="false"' })}
         <button type="submit" class="btn btn-primary block"${R.busy ? ' disabled aria-busy="true"' : ''}>${R.busy ? '<span class="spin" aria-hidden="true"></span>Sending' : 'Send code'}</button>
         <div class="auth-links"><button type="button" class="linkbtn" data-action="auth-go" data-view="login">Back to sign in</button></div>
-      </div></form>${side}</div>`;
+      </div></form>${extra}</div>`;
     }
     const mail = MODE === 'demo'
       ? (R.devMail ? `<div class="mailbox" aria-label="Demo mailbox"><p class="mb-tag">Demo mailbox · no real email is sent</p><dl><div><dt>To</dt><dd>${esc(R.devMail.to)}</dd></div><div><dt>Subject</dt><dd>${esc(R.devMail.subject)}</dd></div></dl><p>${esc(R.devMail.text)}</p></div>`
         : '<div class="mailbox"><p class="mb-tag">Demo mailbox · no real email is sent</p><p>Empty. Nothing is sent when no account matches.</p></div>')
       : '<p class="placeholder"><b>Dev</b><span>No email service is connected yet. The code is printed in the terminal running <code>node server.js</code>.</span></p>';
     const wait = Math.max(0, 30 - Math.floor((Date.now() - R.sentAt) / 1000));
-    return `<div class="auth"><form id="resetForm" class="sheet auth-form" novalidate aria-labelledby="rs-h"><h2 id="rs-h">Enter your code</h2><div class="sheet-in">
+    return `<div class="auth">${side}<form id="resetForm" class="sheet auth-form" novalidate aria-labelledby="rs-h"><h2 id="rs-h">Enter your code</h2><div class="sheet-in">
         <p class="notice" role="status">${esc(R.message)}</p>${mail}
         ${R.err.form ? `<p class="notice err" id="err-reset-form" tabindex="-1" role="alert">${esc(R.err.form)}</p>` : ''}
         ${authField('reset', 'code', '6-digit code', 'text', 'one-time-code', { extra: ' inputmode="numeric" maxlength="7" spellcheck="false"' })}
@@ -1713,7 +1853,7 @@
         <button type="submit" class="btn btn-primary block"${R.busy ? ' disabled aria-busy="true"' : ''}>${R.busy ? '<span class="spin" aria-hidden="true"></span>Saving' : 'Reset password'}</button>
         <div class="auth-links"><button type="button" class="linkbtn" data-action="reset-resend" data-resend-at="${R.sentAt + 30000}"${wait ? ' disabled' : ''}>${wait ? `Send a new code in ${wait}s` : 'Send a new code'}</button>
           <button type="button" class="linkbtn" data-action="reset-restart">Use a different account</button></div>
-      </div></form>${side}</div>`;
+      </div></form>${extra}</div>`;
   }
   async function signup() {
     const F = S.signup, e = {};
@@ -1737,6 +1877,7 @@
     S.next = null;
     go(next);
     toast('Welcome, ' + name + '. Your account is ready.');
+    addPending();
   }
   async function requestReset(resend) {
     const R = S.reset;
@@ -1775,7 +1916,7 @@
   }
   async function login() {
     const L = S.login;
-    if (!L.username.trim() || !L.password) { L.err = 'Enter your username and password.'; S.focusSel = L.username.trim() ? '#lg-pass' : '#lg-user'; render(); return; }
+    if (!L.username.trim() || !L.password) { L.err = 'Enter your username or email, and your password.'; S.focusSel = L.username.trim() ? '#lg-pass' : '#lg-user'; render(); return; }
     L.busy = true; L.err = ''; render();
     const out = await act('login', { username: L.username, password: L.password });
     L.busy = false;
@@ -1788,6 +1929,15 @@
     S.next = null;
     go(next);
     toast('Signed in as ' + me().firstName + ' ' + me().lastName + '.');
+    addPending();
+  }
+  // Finishes the Add to cart a guest tapped before signing in or signing up.
+  function addPending() {
+    const a = S.pendingAdd;
+    S.pendingAdd = null;
+    if (!a || !isPlayer() || !IX.product[a.id]) return;
+    S.shopQty[a.id] = a.qty;
+    addToCart(a.id);
   }
   async function logout() {
     closePanels();
@@ -1897,6 +2047,35 @@
     const tile = (k, label) => `<div class="stat st-${k}"><strong>${n[k]}</strong><span><b aria-hidden="true">${DESK_ST[k][1]}</b> ${label}</span></div>`;
     return tile('use', S.deskHour == null ? 'In use now' : 'In use') + tile('soon', 'Starting within 60 min') + tile('due', 'Payment due') + tile('free', 'Free') + tile('closed', 'Closed');
   }
+  // What's waiting for the desk, each linking straight to its list.
+  function deskNeedsHTML() {
+    const n = deskCounts(), review = V.payments.filter(p => payBucket(p) === 'review').length, cash = V.payments.filter(p => payBucket(p) === 'cash').length;
+    const handover = V.orders.filter(o => o.status === 'READY_FOR_PICKUP').length;
+    const items = [[review, ['Payment', 'Payments'], ' to verify', 'payments', 'review'], [cash, ['Cash deposit', 'Cash deposits'], ' due', 'payments', 'cash'],
+      [n.cancellations, ['Refund', 'Refunds'], ' to review', 'cancellations', 'review'], [handover, ['Order', 'Orders'], ' to hand over', 'orders', '']]
+      .filter(x => x[0]).map(([k, noun, rest, tab, filter]) => [k, noun[k === 1 ? 0 : 1] + rest, tab, filter]);
+    return `<section class="needs" aria-labelledby="needs-h"><h2 id="needs-h" class="hud"><span class="tick"></span>Needs you now</h2>
+      ${items.length ? `<div class="needs-row">${items.map(([k, label, tab, filter]) => `<button type="button" class="need" data-action="need" data-tab="${tab}" data-filter="${filter}"><strong>${k}</strong><span>${label}</span><b aria-hidden="true">→</b></button>`).join('')}</div>`
+        : '<p class="needs-clear"><strong>All clear.</strong> Payments, refunds and shop orders show up here.</p>'}</section>`;
+  }
+  // Search today's and upcoming bookings from the floor, with the desk's actions right on each result.
+  function deskFindHTML() {
+    const q = S.deskQ.trim();
+    if (!q) return '<p class="find-hint">Type a code like 0558, a name or a mobile number.</p>';
+    const list = V.reservations.filter(r => r.date >= today() && LIVE.includes(r.status) && matchesQuery(r, q))
+      .sort((a, b) => a.date.localeCompare(b.date) || a.start - b.start).slice(0, 5);
+    if (!list.length) return `<p class="find-hint">No booking from today on matches “${esc(q)}”. Past bookings are in Front desk → Schedule.</p>`;
+    return `<ul class="find-list">${list.map(r => {
+      const acts = [btn('details', 'Details', 'btn-ghost', { id: r.id })];
+      if (r.status === 'CONFIRMED' && r.date === today()) acts.push(btn('checkin', 'Check in', 'btn-primary', { id: r.id }));
+      if (r.status === 'PAYMENT_VERIFICATION') acts.push(btn('desk-review', 'Review payment', '', {}));
+      if (r.status === 'PENDING_PAYMENT' && r.paymentStatus === 'PENDING' && r.payment) acts.push(btn('pay-approve', 'Cash received', 'btn-primary', { id: r.payment.id }));
+      return `<li class="find-item"><div><strong>${esc(whoOf(r))}</strong><span class="mono">${esc(r.id)}</span>
+          <p class="muted">${esc(courtLabel(r.courtId))} · ${r.date === today() ? 'Today' : esc(fmtDate(r.date))}, ${fmtRange(r.start, r.end)}</p>
+          <div class="cell-badges">${resBadge(r)}${payBadge(r.paymentStatus)}</div></div>
+        <div class="row-actions">${acts.join('')}</div></li>`;
+    }).join('')}</ul>`;
+  }
   function deskTimeLabel() {
     const s = V.settings;
     if (S.deskHour != null) return `Showing ${fmtRange(S.deskHour, S.deskHour + 1)}`;
@@ -1946,7 +2125,9 @@
         let e = h + 1;
         while (e < s.closeHour && !st.list.find(r => r.start <= e && e < r.end)) e++;
         const here = h * 60 <= mins && mins < e * 60;
-        rows.push(`<li class="dp-slot free${here ? ' here' : ''}"><span class="dp-time">${fmtHour(h)}–${fmtHour(e)}${here ? `<em>${S.deskHour == null ? 'Now' : 'Showing'}</em>` : ''}</span><div><span class="muted">${courtOpen(c) ? 'Free' : 'Closed'}</span></div></li>`);
+        const from = Math.max(h, fac().hour), canWalk = courtOpen(c) && from < e && from >= s.openHour;
+        rows.push(`<li class="dp-slot free${here ? ' here' : ''}"><span class="dp-time">${fmtHour(h)}–${fmtHour(e)}${here ? `<em>${S.deskHour == null ? 'Now' : 'Showing'}</em>` : ''}</span><div><span class="muted">${courtOpen(c) ? 'Free' : 'Closed'}</span>
+          ${canWalk ? `<div class="row-actions">${btn('walkin', `Book walk-in<span class="sr-only"> from ${fmtHour(from)}</span>`, 'btn-ghost', { court: c.id, h: from })}</div>` : ''}</div></li>`);
         h = e;
       }
     }
@@ -1964,6 +2145,13 @@
       ${allClosed ? '<p class="notice err">Every court is closed. Open courts again from Front desk → Courts.</p>' : ''}
       ${out && S.deskHour == null ? `<p class="notice">${h < s.openHour ? `The facility opens at ${fmtHour(s.openHour)}.` : 'The facility is closed for the night.'} Courts show today’s next or last bookings; drag the timeline to look at any hour.</p>` : ''}
       ${!booked ? '<p class="notice">No bookings yet today.</p>' : ''}
+      <div class="desk-top">
+        <section class="desk-find" aria-labelledby="find-h"><h2 id="find-h" class="hud"><span class="tick"></span>Find a booking</h2>
+          <form id="deskFindForm" role="search" novalidate><label class="sr-only" for="deskQ">Booking code, name or mobile number</label>
+            <input id="deskQ" type="search" placeholder="Code, name or mobile" autocomplete="off" spellcheck="false" value="${esc(S.deskQ)}"></form>
+          <div id="deskFind" aria-live="polite">${deskFindHTML()}</div></section>
+        ${deskNeedsHTML()}
+      </div>
       <div class="stats desk-stats" id="deskStats" aria-live="polite">${deskStatsHTML()}</div>
       <form class="desk-time" id="deskTimeForm" novalidate><label for="deskTime">Timeline</label>
         <input id="deskTime" type="range" min="${s.openHour}" max="${s.closeHour - 1}" step="1" value="${val}" aria-valuetext="${esc(fmtRange(val, val + 1))}">
@@ -2249,7 +2437,8 @@
     CHECK_IN_USER: 'Checked in', CANCEL_RESERVATION: 'Cancelled reservation', APPROVE_REFUND: 'Approved refund', REJECT_REFUND: 'Denied refund', COMPLETE_REFUND: 'Refund sent',
     PLACE_ORDER: 'Placed order', CANCEL_ORDER: 'Cancelled order', COLLECT_ORDER: 'Order collected', UPDATE_SETTINGS: 'Changed settings', UPDATE_COURT: 'Changed court',
     UPDATE_STOCK: 'Changed stock', UPDATE_PRODUCT: 'Changed product', RATE_COURT: 'Rated a court', EDIT_RATING: 'Edited a rating',
-    HIDE_RATING: 'Hid a rating', UNHIDE_RATING: 'Showed a rating again', REGISTER: 'Created account', PASSWORD_RESET_REQUESTED: 'Asked for reset code', PASSWORD_RESET: 'Reset password'
+    HIDE_RATING: 'Hid a rating', UNHIDE_RATING: 'Showed a rating again', REGISTER: 'Created account', PASSWORD_RESET_REQUESTED: 'Asked for reset code', PASSWORD_RESET: 'Reset password',
+    CREATE_WALK_IN: 'Booked a walk-in'
   };
   function activityTab() {
     const actions = [...new Set(V.logs.map(l => l.action))].sort();
@@ -2506,7 +2695,7 @@
     if (!t || !V) return;
     const d = t.dataset;
     switch (d.action) {
-      case 'view': if (d.view === 'login' || d.view === 'signup') { S.next = null; S.loginNotice = ''; } go(d.view); break;
+      case 'view': if (d.view === 'login' || d.view === 'signup') { S.next = null; S.loginNotice = ''; S.pendingAdd = null; } go(d.view); break;
       case 'to-login': S.next = 'book'; S.loginNotice = 'Sign in to reserve this slot. Your selection is kept.'; go('login'); break;
       case 'sport':
         S.sport = d.sport; clearSel(); delete S.errors.slot;
@@ -2519,9 +2708,19 @@
       case 'clear': clearHours(); render(); break;
       case 'to-form': {
         if (!me()) { S.next = 'book'; S.loginNotice = 'Sign in to reserve this slot. Your selection is kept.'; go('login'); break; }
+        // Signed in with the details already filled in: skip the scroll and go straight to review.
+        if (isPlayer() && detailsReady()) {
+          await reserve();
+          const err = S.view === 'book' && $('#err-slot, #bookForm [aria-invalid="true"]');
+          if (err) err.scrollIntoView({ behavior: reduceMotion() ? 'auto' : 'smooth', block: 'center' });
+          break;
+        }
+        if (isAdmin()) { const f = $('#walkinForm'); if (f) { f.scrollIntoView({ behavior: reduceMotion() ? 'auto' : 'smooth', block: 'start' }); setTimeout(() => { const n = $('#wk-name'); if (n) n.focus({ preventScroll: true }); }, reduceMotion() ? 0 : 350); } break; }
         const panel = $('.panel');
         if (panel) panel.scrollIntoView({ behavior: reduceMotion() ? 'auto' : 'smooth', block: 'start' });
-        const first = $('#f-phone') || $('#bookForm button[type=submit]');
+        // Land on the first thing still missing.
+        const f = S.form, team = f.type === 'TEAM';
+        const first = (!/^09\d{9}$/.test(normPhone(f.phone)) && $('#f-phone')) || (team && !f.teamName.trim() && $('#f-team')) || (team && $('#f-head')) || $('#bookForm button[type=submit]');
         if (first) setTimeout(() => first.focus({ preventScroll: true }), reduceMotion() ? 0 : 350);
         break;
       }
@@ -2587,7 +2786,17 @@
         S.co = null; go('book'); toast('Slot released.');
         break;
       }
-      case 'rebook': { const r = IX.res[d.id]; if (r) { S.sport = r.sportId; S.date = r.date; } S.co = null; go('book'); break; }
+      case 'rebook': rebook(d.id); break;
+      case 'ics': downloadIcs(d.id); break;
+      case 'need': S.adminTab = d.tab; if (d.tab === 'payments') S.payFilter = d.filter; if (d.tab === 'cancellations') S.refundFilter = d.filter || 'review'; S.pending = null; go('admin'); break;
+      case 'walkin': {
+        const c = IX.court[d.court];
+        if (!c) break;
+        S.sport = c.sportId; S.date = today(); S.sel = { court: c.id, hours: [Number(d.h)] }; S.walkin = blankWalkin(); S.errors = {};
+        S.pendingNotice = `${courtLabel(c.id)} from ${fmtHour(Number(d.h))} picked for a walk-in. Tap the next hour to extend, then add their name.`;
+        S.pendingSection = 'walkinForm'; S.nextFocus = '#wk-name';
+        go('book'); break;
+      }
       case 'addon': changeAddon(d.id, Number(d.step)); break;
       case 'qty': changeQty(d.id, Number(d.step)); break;
       case 'add-cart': addToCart(d.id); break;
@@ -2623,6 +2832,12 @@
     if (el.id === 'q') { S.q = el.value; const box = $('#sched'); if (box) { box.innerHTML = scheduleHTML(); cueScrollers(box); } return; }
     if (el.id === 'shopQ') { S.shopQ = el.value; const g = $('#pgrid'); if (g) g.innerHTML = gridHTML(); return; }
     if (el.id === 'custQ') { S.custQ = el.value; S.focusSel = '#custQ'; render(); return; }
+    if (el.id === 'deskQ') { S.deskQ = el.value; const box = $('#deskFind'); if (box) box.innerHTML = deskFindHTML(); return; }
+    if (el.dataset.wk) {
+      S.walkin[el.name] = el.value;
+      if (S.walkin.err[el.name]) { delete S.walkin.err[el.name]; el.removeAttribute('aria-invalid'); el.removeAttribute('aria-describedby'); const m = document.getElementById('err-wk-' + el.name); if (m) m.remove(); }
+      return;
+    }
     if (el.id === 'lg-user') { S.login.username = el.value; return; }
     if (el.id === 'lg-pass') { S.login.password = el.value; return; }
     if (el.dataset.su || el.dataset.rs) {
@@ -2650,6 +2865,7 @@
     if (el.dataset.rx) { S.rx.note = el.value; return; }
     if (el.form && el.form.id === 'bookForm' && el.type !== 'radio' && el.name in S.form) {
       S.form[el.name] = el.value;
+      syncBar();
       if (S.errors[el.name]) { delete S.errors[el.name]; el.removeAttribute('aria-invalid'); el.removeAttribute('aria-describedby'); const m = document.getElementById('err-' + el.name); if (m) m.remove(); }
       return;
     }
@@ -2662,12 +2878,16 @@
   document.addEventListener('change', e => {
     const el = e.target;
     if (el.name === 'type' && el.form && el.form.id === 'bookForm') {
-      S.form.type = el.value; $('#teamFields').hidden = el.value !== 'TEAM'; $('#price').innerHTML = priceHTML();
+      S.form.type = el.value; $('#teamFields').hidden = el.value !== 'TEAM'; $('#price').innerHTML = priceHTML(); syncBar();
     } else if (el.name && el.name.indexOf('method-') === 0) {
       const ctx = el.name.slice(7), d = S.drafts[ctx];
       d.method = el.value; d.err = {};
       S.focusSel = `[name="method-${ctx}"][value="${el.value}"]`;
       render();
+    } else if (el.name === 'wk-type') { S.walkin.type = el.value; delete S.walkin.err.playerType; S.focusSel = `[name="wk-type"][value="${el.value}"]`; render();
+    } else if (el.name === 'wk-collect') { S.walkin.collect = el.value;
+    } else if (el.name === 'wk-checkin') { S.walkin.checkin = el.checked;
+    } else if (el.id === 'wk-method') { S.walkin.method = el.value; S.focusSel = '#wk-method'; render();
     } else if (el.id === 'shopSort') { S.shopSort = el.value; const g = $('#pgrid'); if (g) g.innerHTML = gridHTML(); }
     else if (el.id === 'logFilter') { S.logFilter = el.value; S.focusSel = '#logFilter'; render(); }
     else if (el.id === 'cx-reason') { S.cx.reasonId = el.value; S.cx.err = {}; renderCx(); const r = $('#cx-reason'); if (r) r.focus(); }
@@ -2688,6 +2908,8 @@
     else if (id === 'settingsForm') saveSettings(f);
     else if (id === 'cxForm') cxContinue();
     else if (id === 'rateForm') submitRate();
+    else if (id === 'walkinForm') bookWalkin();
+    else if (id === 'deskFindForm') { const b = $('#deskFind .btn-primary'); if (b && $('#deskFind .find-item:only-child')) b.focus(); }
     else if (f.dataset.hideForm) {
       const reason = f.reason.value.trim();
       if (!reason) { toast('Say why this rating is hidden.'); f.reason.focus(); return; }
