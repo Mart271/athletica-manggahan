@@ -32,7 +32,7 @@
   // For a walk-in, the hour that has started is still bookable; it has passed only once it ends.
   const gone = (date, h) => { if (!isAdmin()) return isPast(date, h); const f = fac(); return date < f.date || (date === f.date && h < f.hour); };
   const reduceMotion = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-  const isPhoneNav = () => !!(window.matchMedia && window.matchMedia('(max-width: 759px)').matches);
+  const isPhoneNav = () => !!(window.matchMedia && window.matchMedia('(max-width: 759px), (max-height: 500px) and (orientation: landscape)').matches);
   const mq = window.matchMedia ? window.matchMedia('(max-width: 720px)') : null;
   const isNarrow = () => !!(mq && mq.matches);
   const normPhone = v => { let x = String(v || '').replace(/[\s\-().]/g, ''); if (/^\+?63\d{10}$/.test(x)) x = '0' + x.replace(/^\+?63/, ''); return x; };
@@ -404,7 +404,7 @@
     }).join('');
     const arts = list.map((s, i) => `<svg viewBox="0 0 200 120" data-i="${i}" aria-hidden="true">${ART[s.id] || ART.basketball}</svg>`).join('');
     const rail = list.map((s, i) => `<button type="button" class="rail-btn" data-action="sc-jump" data-i="${i}">${esc(s.name)}<i></i></button>`).join('');
-    return `<section class="showcase" id="showcase" style="--n:${list.length}" aria-label="Sports and facilities">
+    return `<section class="showcase" id="showcase" style="--n:${list.length}" aria-labelledby="sc-h"><h2 class="sr-only" id="sc-h">Sports and facilities</h2>
         <div class="sc-sticky"><div class="wrap">
           <div class="sc-grid">
             <div class="sc-left">
@@ -421,7 +421,7 @@
             </div></div>
           </div>
           <div class="sc-bottom">
-            <nav class="sc-rail" aria-label="Jump to a sport">${rail}</nav>
+            <div class="xs xs-mid"><nav class="sc-rail" aria-label="Jump to a sport">${rail}</nav></div>
             <div class="sc-cta"><div class="next-slot" id="nextSlot"></div>
               <button type="button" class="book-now magnetic" id="bookNow" data-action="sport" data-sport="${list[0].id}">
                 <span class="bn-fill" aria-hidden="true"></span>
@@ -533,6 +533,8 @@
     scIdx = i;
     const sec = document.getElementById('showcase');
     if (!sec) return;
+    const rail = sec.querySelector('.sc-rail');
+    if (rail) { showPressed(rail, rail.querySelectorAll('.rail-btn')[i]); cueScroll(rail); }
     const s = sportsList()[i];
     sec.querySelectorAll('.sc-title').forEach(el => {
       const k = +el.dataset.i;
@@ -623,11 +625,11 @@
   /* ---------- Booking grid ---------- */
   function dayStrip(selected, action) {
     const t = today();
-    return '<div class="days" role="group" aria-label="Date">' + Array.from({ length: V.settings.bookingWindowDays }, (_, i) => {
+    return '<div class="xs xs-bg xs-mid"><div class="days" role="group" aria-label="Date">' + Array.from({ length: V.settings.bookingWindowDays }, (_, i) => {
       const d = addDays(t, i), dt = parseDate(d);
       return `<button type="button" class="day" data-action="${action}" data-date="${d}" aria-pressed="${d === selected}" aria-label="${esc(fmtDate(d))}">
         <span>${i === 0 ? 'Today' : dt.toLocaleDateString('en-PH', { weekday: 'short' })}</span><strong>${dt.getDate()}</strong><span>${dt.toLocaleDateString('en-PH', { month: 'short' })}</span></button>`;
-    }).join('') + '</div>';
+    }).join('') + '</div></div>';
   }
   function countOpen(sportId, date) {
     let n = 0;
@@ -838,7 +840,7 @@
         <h1 class="page-title" tabindex="-1">${isAdmin() ? 'Court availability' : 'Book a slot'}</h1>
         <p>${isAdmin() ? `Every ${esc(s.unit)} and hour at a glance. Pick open hours to book a walk-in.` : `Choose a sport, a date and a ${esc(s.unit)}, then pick up to ${V.settings.maxHoursPerBooking} back-to-back hours.`}</p></div>
       <div class="book"><div>
-        <div class="chips" role="group" aria-label="Sport">${chips}</div>
+        <div class="xs xs-mid"><div class="chips" role="group" aria-label="Sport">${chips}</div></div>
         ${dayStrip(S.date, 'date')}
         ${picker ? `<section class="court-pick" aria-labelledby="pick-h">
           <div class="grid-head pick-head"><h2 id="pick-h">Choose a ${esc(s.unit)}</h2><span class="muted">${plural(courts.length, s.unit)} · ${esc(fmtDate(S.date))}</span></div>
@@ -1161,7 +1163,8 @@
         : `${esc(pay && pay.note ? pay.note : 'Your last payment could not be verified.')} Resubmit within <strong data-until="${esc(r.holdExpiresAt)}">${mmss(left)}</strong> to keep the slot.`;
     const holdbar = `<div class="holdbar${left < 180000 ? ' urgent' : ''}"><p>${msg}</p>
       ${r.paymentStatus === 'UNPAID' ? btn('release', 'Release slot', 'btn-ghost', { id: r.id }) : btn('cancel', 'Cancel booking', 'btn-ghost', { id: r.id })}</div>
-      <p class="sr-only" id="holdAnnounce" aria-live="polite"></p>`;
+      <p class="sr-only" id="holdAnnounce" aria-live="polite"></p>
+      ${r.paymentStatus === 'PENDING' ? '' : `<div class="holdmini" id="holdmini" hidden aria-hidden="true"><span>Slot held</span><strong data-until="${esc(r.holdExpiresAt)}">${mmss(left)}</strong></div>`}`;
     if (S.co.step === 'review' && r.paymentStatus === 'UNPAID') {
       return coHead('Review reservation', 'Check the details, add drinks or snacks for the game, then pay the deposit.') + stepsBar(2) + holdbar +
         `<div class="co"><div>
@@ -1173,7 +1176,7 @@
     const d = S.drafts.res;
     return coHead('Pay the deposit', `${r.depositPercentage}% of the court total confirms your slot once staff verify it. The ${peso(r.remainingBalance)} balance is paid at the desk before play.`) +
       stepsBar(3) + holdbar +
-      `<div class="co"><form id="payForm" class="sheet" novalidate aria-labelledby="pay-h"><h2 id="pay-h">Payment</h2><div class="sheet-in">
+      `<div class="co co-pay"><form id="payForm" class="sheet" novalidate aria-labelledby="pay-h"><h2 id="pay-h">Payment</h2><div class="sheet-in">
         ${d.err.form ? `<p class="notice err form-err" id="err-form-res" tabindex="-1">${esc(d.err.form)}</p>` : ''}
         ${methodTiles('res', d, 'res')}<div class="paybox">${payDetailsHTML('res', d, dueNow(r), 'res')}</div>
       </div></form><aside class="co-aside">${dueCardHTML(r, 'pay', r.paymentStatus === 'UNPAID')}</aside></div>`;
@@ -1275,8 +1278,16 @@
     dlg.innerHTML = html;
     if (dlg.querySelector('#dlg-title')) dlg.setAttribute('aria-labelledby', 'dlg-title'); else dlg.removeAttribute('aria-labelledby');
     if (!dlg.open) { if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', ''); }
+    fitDlg();
     const f = dlg.querySelector('[data-autofocus]') || dlg.querySelector('[data-action="close"]');
     if (f) f.focus();
+  }
+  // A dialog taller than the screen scrolls inside itself; one that fits keeps its edge decorations.
+  function fitDlg() {
+    const d = $('#dlg');
+    if (!d.open) return;
+    d.classList.remove('dlg-scroll');
+    if (d.scrollHeight > d.clientHeight + 2) d.classList.add('dlg-scroll');
   }
   function closeDlg() {
     const dlg = $('#dlg');
@@ -1648,10 +1659,10 @@
     return `<div class="page-head"><p class="hud"><span class="tick"></span>Athlete shop</p><h1 class="page-title" tabindex="-1">Fuel up</h1>
         <p>Drinks, snacks and court essentials. Order here and collect at the front desk, or add them to your next reservation.</p></div>
       <div class="shop"><div>
-        <div class="shop-tools"><div class="chips" role="group" aria-label="Category">${chips}</div>
+        <div class="shop-tools"><div class="xs xs-mid"><div class="chips" role="group" aria-label="Category">${chips}</div></div>
           <div class="shop-search"><label class="sr-only" for="shopQ">Search products</label><input id="shopQ" type="search" placeholder="Search drinks, snacks, gear" value="${esc(S.shopQ)}" autocomplete="off"></div>
           <label class="sortsel"><span>Sort</span><select id="shopSort">${[['featured', 'Featured'], ['low', 'Price: low to high'], ['high', 'Price: high to low']].map(([v, l]) => `<option value="${v}"${S.shopSort === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label></div>
-        <div class="pgrid" id="pgrid">${gridHTML()}</div>
+        <h2 class="sr-only">Products</h2><div class="pgrid" id="pgrid">${gridHTML()}</div>
       </div><aside class="minicart" id="minicart">${minicartHTML()}</aside></div>
       <div class="shop-pad"></div>${cartbarHTML()}`;
   }
@@ -2520,7 +2531,7 @@
   /* ---------- Shell ---------- */
   const VIEWS = { home: renderHome, book: renderBook, checkout: renderCheckout, shop: renderShop, cart: renderCart, mine: renderMine, profile: renderProfile, login: renderLogin, signup: renderSignup, reset: renderReset, admin: renderAdmin, desk: renderDesk };
   const TITLES = { home: '', book: 'Book a slot', checkout: 'Checkout', shop: 'Athlete shop', cart: 'Cart', mine: 'My reservations', profile: 'Profile', login: 'Sign in', signup: 'Sign up', reset: 'Reset password', admin: 'Front desk', desk: 'Floor view' };
-  let toastTimer = null, barObserver = null;
+  let toastTimer = null, barObserver = null, holdObserver = null;
   function toast(msg) {
     const el = $('#toast');
     el.textContent = msg;
@@ -2549,8 +2560,27 @@
     w.classList.toggle('more-l', max > 1 && el.scrollLeft > 4);
     w.classList.toggle('more-r', max > 1 && el.scrollLeft < max - 4);
   }
-  function cueScrollers(root) { (root || document).querySelectorAll('.xs > .tbl, .xs > .atabs').forEach(cueScroll); }
+  function cueScrollers(root) { (root || document).querySelectorAll('.xs > *').forEach(cueScroll); }
+  // Keep the chosen chip, day or tab on screen inside its sideways strip.
+  function showPressed(sc, sel) {
+    const on = sel && typeof sel === 'object' ? sel : sc.querySelector(sel || '[aria-pressed="true"]');
+    if (!on || sc.scrollWidth <= sc.clientWidth) return;
+    const left = on.offsetLeft - sc.scrollLeft;
+    if (left < 0 || left + on.offsetWidth > sc.clientWidth) sc.scrollLeft = on.offsetLeft - (sc.clientWidth - on.offsetWidth) / 2;
+  }
   document.addEventListener('scroll', e => { if (e.target instanceof Element && e.target.parentElement && e.target.parentElement.classList.contains('xs')) cueScroll(e.target); }, { capture: true, passive: true });
+  // Each cell carries its column name, so tables can fold into labelled cards on phones (see .tbl in styles.css).
+  function labelCells(root) {
+    (root || document).querySelectorAll('.tbl table').forEach(t => {
+      const heads = [];
+      t.querySelectorAll('thead th').forEach(th => { for (let k = 0; k < (th.colSpan || 1); k++) heads.push(th.textContent.trim()); });
+      t.querySelectorAll('tbody tr').forEach(tr => {
+        let col = 0;
+        // The buttons column needs no label; a column that merely is called "Action" (the activity log) keeps it.
+        [...tr.children].forEach(td => { const h = heads[col] || ''; td.dataset.label = !h || (h === 'Action' && td.querySelector('button')) ? '' : h; col += td.colSpan || 1; });
+      });
+    });
+  }
   function runWipe() { const w = $('.wipe'); w.classList.remove('run'); void w.offsetWidth; w.classList.add('run'); }
   $('.wipe').addEventListener('animationend', e => e.currentTarget.classList.remove('run'));
   function setHeader() {
@@ -2584,15 +2614,15 @@
     if (S.view !== 'cart') S.lastOrder = null;
     const app = $('#app'), screen = S.view + '/' + (S.view === 'admin' ? S.adminTab : '');
     // Re-rendering the same screen (after a check-in, say) keeps each sideways scroller where it was.
-    const lefts = app.dataset.screen === screen ? [...app.querySelectorAll('.scroll-x, .tbl')].map(el => el.scrollLeft) : [];
+    const lefts = app.dataset.screen === screen ? [...app.querySelectorAll('.scroll-x, .xs > *')].map(el => el.scrollLeft) : [];
     const html = (VIEWS[S.view] || renderHome)();
     app.innerHTML = S.view === 'home' ? html : '<div class="wrap page">' + html + '</div>';
     app.dataset.view = S.view;
     app.dataset.screen = screen;
-    app.querySelectorAll('.scroll-x, .tbl').forEach((el, i) => { if (lefts[i]) el.scrollLeft = lefts[i]; });
-    const tab = app.querySelector('.atabs [aria-pressed="true"]');
-    if (tab) { const strip = tab.parentElement; strip.scrollLeft = tab.offsetLeft - (strip.clientWidth - tab.offsetWidth) / 2; }
+    app.querySelectorAll('.scroll-x, .xs > *').forEach((el, i) => { if (lefts[i]) el.scrollLeft = lefts[i]; });
+    app.querySelectorAll('.xs > *').forEach(sc => showPressed(sc));
     cueScrollers(app);
+    labelCells(app);
     if (S.focusKey) { const el = app.querySelector('[data-key="' + S.focusKey + '"]'); if (el && !el.disabled) el.focus({ preventScroll: true }); S.focusKey = null; }
     if (S.focusSel) {
       const el = app.querySelector(S.focusSel);
@@ -2600,6 +2630,10 @@
       S.focusSel = null;
     }
     if (barObserver) { barObserver.disconnect(); barObserver = null; }
+    if (holdObserver) { holdObserver.disconnect(); holdObserver = null; }
+    // Once the hold banner scrolls away on a phone, a small timer stays pinned to the bottom.
+    const hb = app.querySelector('.holdbar'), hm = app.querySelector('#holdmini');
+    if (hb && hm && 'IntersectionObserver' in window) { holdObserver = new IntersectionObserver(en => { hm.hidden = en[0].isIntersecting; }); holdObserver.observe(hb); }
     const bar = app.querySelector('#actionbar'), panel = app.querySelector('.panel');
     if (bar && panel && 'IntersectionObserver' in window) { barObserver = new IntersectionObserver(en => { bar.hidden = en[0].isIntersecting; }, { threshold: 0.15 }); barObserver.observe(panel); }
     syncChrome();
@@ -2829,7 +2863,7 @@
   });
   document.addEventListener('input', e => {
     const el = e.target;
-    if (el.id === 'q') { S.q = el.value; const box = $('#sched'); if (box) { box.innerHTML = scheduleHTML(); cueScrollers(box); } return; }
+    if (el.id === 'q') { S.q = el.value; const box = $('#sched'); if (box) { box.innerHTML = scheduleHTML(); cueScrollers(box); labelCells(box); } return; }
     if (el.id === 'shopQ') { S.shopQ = el.value; const g = $('#pgrid'); if (g) g.innerHTML = gridHTML(); return; }
     if (el.id === 'custQ') { S.custQ = el.value; S.focusSel = '#custQ'; render(); return; }
     if (el.id === 'deskQ') { S.deskQ = el.value; const box = $('#deskFind'); if (box) box.innerHTML = deskFindHTML(); return; }
@@ -2954,7 +2988,7 @@
     const card = e.target.closest && e.target.closest('.court-card');
     if (card && !card.contains(e.relatedTarget)) { card.style.removeProperty('--px'); card.style.removeProperty('--py'); }
   });
-  window.addEventListener('resize', () => { if (menuOpen() && !isPhoneNav()) setMenu(false); setHeader(); moveInd(); cueScrollers(); if (V && S.view === 'home') scUpdate(); });
+  window.addEventListener('resize', () => { if (menuOpen() && !isPhoneNav()) setMenu(false); setHeader(); moveInd(); cueScrollers(); fitDlg(); if (V && S.view === 'home') scUpdate(); });
 
   /* ---------- Timers ---------- */
   let lastAnnounce = '', expiring = false;
@@ -2969,6 +3003,7 @@
     if (r && r.status === 'PENDING_PAYMENT' && r.holdExpiresAt) {
       const left = msUntil(r.holdExpiresAt), bar = $('.holdbar');
       if (bar) bar.classList.toggle('urgent', left < 180000);
+      const mini = $('#holdmini'); if (mini) mini.classList.toggle('urgent', left < 180000);
       const msg = left <= 0 ? '' : left < 60000 ? 'Less than one minute left on your hold.' : left < 300000 ? 'Five minutes left on your hold.' : '';
       const an = $('#holdAnnounce');
       if (an && msg && msg !== lastAnnounce) { an.textContent = msg; lastAnnounce = msg; }

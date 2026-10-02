@@ -8,7 +8,7 @@
    ============================================================ */
 :root{
   --paper:#E8E4DA;--panel:#F5F3EC;--panel-2:#DAD5C8;--ink:#0B0B0A;
-  --red:#FF2D00;--red-deep:#C41D00;--volt:#D8FF00;
+  --red:#FF2D00;--red-deep:#C41D00;--volt:#D8FF00;--red-ink:#C41D00;
   --bg:var(--paper);--fg:var(--ink);--inv-fg:#F5F3EC;--field:#FFFFFF;
   --muted:#514C43;--hair:rgba(11,11,10,.2);--hatch:rgba(11,11,10,.45);--grid:rgba(11,11,10,.075);
   --bw:2px;--bwt:3px;
@@ -27,12 +27,12 @@
   --paper:#121210;--panel:#1B1B18;--panel-2:#25251F;--bg:#121210;--fg:#E7E3D8;--inv-fg:#121210;--field:#0E0E0C;
   --muted:#A8A396;--hair:rgba(231,227,216,.16);--hatch:rgba(231,227,216,.3);--grid:rgba(231,227,216,.045);
   --line:#6A665C;--shadow:#3A3832;--red-shadow:#8F2410;--slab:#26251F;--slab-fg:#E7E3D8;--slab-muted:#A8A396;--volt:#C6E61E;
-  --ok:#86D9A6;--ok-bg:#15291C;--warn:#EDC173;--warn-bg:#2E2512;--bad:#FF9E8F;--bad-bg:#35170F;color-scheme:dark}}
+  --ok:#86D9A6;--ok-bg:#15291C;--warn:#EDC173;--warn-bg:#2E2512;--bad:#FF9E8F;--bad-bg:#35170F;--red-ink:#FF2D00;color-scheme:dark}}
 :root[data-theme="dark"]{
   --paper:#121210;--panel:#1B1B18;--panel-2:#25251F;--bg:#121210;--fg:#E7E3D8;--inv-fg:#121210;--field:#0E0E0C;
   --muted:#A8A396;--hair:rgba(231,227,216,.16);--hatch:rgba(231,227,216,.3);--grid:rgba(231,227,216,.045);
   --line:#6A665C;--shadow:#3A3832;--red-shadow:#8F2410;--slab:#26251F;--slab-fg:#E7E3D8;--slab-muted:#A8A396;--volt:#C6E61E;
-  --ok:#86D9A6;--ok-bg:#15291C;--warn:#EDC173;--warn-bg:#2E2512;--bad:#FF9E8F;--bad-bg:#35170F;color-scheme:dark}
+  --ok:#86D9A6;--ok-bg:#15291C;--warn:#EDC173;--warn-bg:#2E2512;--bad:#FF9E8F;--bad-bg:#35170F;--red-ink:#FF2D00;color-scheme:dark}
 
 /* Per-sport accent, driven by the pinned showcase */
 :root[data-sport="basketball"]{--sport:#FF5A00}
@@ -602,7 +602,7 @@ html[data-vt="swap"]::view-transition-new(slots),html[data-vt="swap"]::view-tran
 
 /* Phones: the main nav collapses into a menu under the top bar */
 .nav-toggle{display:none}
-@media (max-width:759px){
+@media (max-width:759px),(max-height:500px) and (orientation:landscape){
   .top-in{position:static;flex-wrap:nowrap;padding-block:8px}
   .opt-btn span{display:none}
   .opt-btn{padding:0 10px}
@@ -619,9 +619,9 @@ html[data-vt="swap"]::view-transition-new(slots),html[data-vt="swap"]::view-tran
   .top nav button[aria-current="page"]:hover{background:var(--fg)}
   .nav-ind{display:none}
 }
-@media (max-width:759px) and (prefers-reduced-motion:no-preference){.top.menu-open nav.mainnav{animation:rise-in .2s var(--ease)}}
+@media (max-width:759px) and (prefers-reduced-motion:no-preference),(max-height:500px) and (orientation:landscape) and (prefers-reduced-motion:no-preference){.top.menu-open nav.mainnav{animation:rise-in .2s var(--ease)}}
 /* Tablet: nav wraps under the brand */
-@media (min-width:760px) and (max-width:1023px){
+@media (min-width:760px) and (max-width:1023px) and (min-height:501px){
   .top-in{flex-wrap:wrap;gap:10px;padding-block:9px}
   .top nav.mainnav{order:3;width:100%}
   .top nav button{flex:1;padding:0 6px;font-size:.62rem;letter-spacing:.08em}
@@ -967,7 +967,7 @@ textarea[aria-invalid="true"],select[aria-invalid="true"]{border-color:var(--bad
 /* Header tools */
 .tool-bell{position:relative}
 .opt-btn .cart-count{margin-left:2px}
-@media (max-width:759px){.tool-bell .cart-count{position:absolute;top:-8px;right:-8px}.tool-bell{position:relative}}
+@media (max-width:759px),(max-height:500px) and (orientation:landscape){.tool-bell .cart-count{position:absolute;top:-8px;right:-8px}.tool-bell{position:relative}}
 .brand small{letter-spacing:.3em}
 
 /* Account + notification panels */
@@ -1207,7 +1207,7 @@ body{display:flex;flex-direction:column;min-height:100vh;min-height:100dvh}
 .cta .btn:not(.btn-primary){background:transparent;color:var(--slab-fg);box-shadow:none}
 .cta .btn:not(.btn-primary):hover{background:transparent;box-shadow:5px 5px 0 var(--slab-fg)}
 @media (max-width:1199px){.top-auth .btn{padding:0 10px}}
-@media (max-width:759px){
+@media (max-width:759px),(max-height:500px) and (orientation:landscape){
   .top-auth{display:none}
   .top nav.mainnav .nav-auth{display:flex;gap:12px;padding:16px 20px 20px;border-top:var(--bw) solid var(--line)}
   .top nav.mainnav .nav-auth .btn{flex:1;justify-content:center;min-height:var(--h-md);padding:0 12px;border:var(--bw) solid var(--line);
@@ -1287,7 +1287,7 @@ dialog.rate-dlg{max-width:460px}
 .dp-slot{display:grid;grid-template-columns:92px minmax(0,1fr);gap:10px;padding:10px 0;border-top:1px solid var(--hair)}
 .dp-slot.here{padding-left:8px;background:linear-gradient(90deg,var(--panel-2),transparent);box-shadow:inset 4px 0 0 var(--red)}
 .dp-time{font:700 .7rem var(--mono);letter-spacing:.03em}
-.dp-time em{display:block;margin-top:2px;font-style:normal;font-size:.58rem;letter-spacing:.14em;text-transform:uppercase;color:var(--red)}
+.dp-time em{display:block;margin-top:2px;font-style:normal;font-size:.58rem;letter-spacing:.14em;text-transform:uppercase;color:var(--red-ink)}
 .dp-slot .muted{margin:2px 0 6px;font-size:.78rem}
 .dp-slot.free .muted{font-size:.84rem}
 .dp-slot .row-actions,.dpr-form .row-actions{flex-wrap:wrap;margin-top:8px}
@@ -1384,9 +1384,9 @@ a.btn{text-decoration:none}
 .needs-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
 .need{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:4px 10px;padding:10px 12px;border:var(--bw) solid var(--line);background:var(--panel-2);color:var(--fg);
   text-align:left;cursor:pointer;font:inherit;transition:background-color var(--t),transform var(--t)}
-.need strong{font-stretch:112%;font-weight:900;font-size:1.5rem;line-height:1;color:var(--red)}
+.need strong{font-stretch:112%;font-weight:900;font-size:1.5rem;line-height:1;color:var(--red-ink)}
 .need span{font:700 .62rem/1.3 var(--mono);letter-spacing:.1em;text-transform:uppercase}
-.need b{color:var(--red)}
+.need b{color:var(--red-ink)}
 .need:hover{background:var(--fg);color:var(--inv-fg)}
 .need:hover strong,.need:hover b{color:var(--red)}
 @media (prefers-reduced-motion:no-preference){.need:hover{transform:translate(-2px,-2px)}}
@@ -1398,3 +1398,195 @@ a.btn{text-decoration:none}
 .types.one{grid-template-columns:1fr}
 .dp-slot.free .row-actions{margin-top:6px}
 .auth-form .notice{margin:0 0 16px}
+
+/* ================= Mobile polish ================= */
+/* Dialogs taller than the screen scroll inside themselves (set by fitDlg in app.js). */
+dialog.dlg-scroll{overflow-y:auto;overscroll-behavior:contain}
+
+/* No zoom-on-focus on phones: every field is at least 16px. */
+@media (pointer:coarse),(max-width:760px){
+  input:not([type=radio]):not([type=checkbox]):not([type=range]):not([type=file]),select,textarea,.court-form select,.court-form input{font-size:16px}
+}
+
+/* Touch screens get 44px targets. */
+@media (pointer:coarse){
+  :root{--h-sm:44px}
+  .opt-btn{min-height:44px;min-width:44px;justify-content:center}
+  .chip,.shop-tools .chip,.rail-btn,.brand,.seg button,.subseg button,.hour-grid .cell,.atab{min-height:44px}
+  .qty button,.qty.sm button{width:44px;min-height:44px}
+  .linkbtn{display:inline-flex;align-items:center;justify-content:center;min-height:44px;min-width:44px;padding-block:0}
+  input[type=range]{min-height:44px}
+  .court-form input,.court-form select,.inline-form input{min-height:44px}
+}
+@media (pointer:coarse) and (max-width:380px){
+  .top-in{gap:6px}
+  .top-tools{gap:6px}
+  .brand strong{font-size:1rem}
+}
+/* The smallest phones show just the mark, so the three 44px header buttons still fit. */
+@media (pointer:coarse) and (max-width:340px){.brand>span{display:none}}
+
+/* Sideways strips show a cue too; strips on the page background fade into it. */
+.xs-mid::after{align-content:center;padding-top:0}
+.xs-bg::before{background:linear-gradient(to right,var(--bg),transparent)}
+.xs-bg::after{background:linear-gradient(to left,var(--bg) 35%,transparent)}
+.shop-tools>.xs{flex:1 1 auto;min-width:0}
+
+/* The bottom booking bar stays one row: the summary wraps beside the button instead of pushing it below. */
+.actionbar{flex-wrap:nowrap}
+.actionbar>div{flex:1 1 0}
+.actionbar .btn{flex:none;padding-inline:12px;font-size:.7rem;letter-spacing:.05em}
+.actionbar strong{font-size:.86rem}
+
+/* Landscape phones: no ticker, so the page keeps its height. */
+@media (max-height:500px) and (orientation:landscape){
+  .ticker{display:none}
+  .actionbar{padding-block:6px}
+}
+
+/* Payment step on phones: the summary comes first and the amount appears once. */
+@media (max-width:1060px){
+  .co-pay .co-aside{order:-1}
+  .co-pay .paybox .due{display:none}
+  .holdmini{position:fixed;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom,0px));z-index:30;display:flex;justify-content:space-between;align-items:center;gap:12px;
+    padding:10px 14px;background:var(--warn-bg);color:var(--warn);border:var(--bw) solid currentColor;box-shadow:var(--hard-sm);font:700 .78rem var(--mono);letter-spacing:.1em;text-transform:uppercase}
+  .holdmini strong{font-size:1.05rem;font-variant-numeric:tabular-nums}
+  .holdmini.urgent{background:var(--bad-bg);color:var(--bad)}
+  .holdmini[hidden]{display:none}
+  #app:has(#holdmini) .page{padding-bottom:76px}
+  body:has(#actionbar:not([hidden])) #toast,body:has(#holdmini:not([hidden])) #toast{bottom:calc(100px + env(safe-area-inset-bottom,0px))}
+}
+@media (min-width:1061px){.holdmini{display:none}}
+
+/* Small labels: never under about 11px on phones. */
+@media (max-width:760px){
+  .cart-count,.qr-tag{font-size:.7rem}
+  .hud,
+  .spec dt,
+  .stat span,
+  .hs span,
+  th,
+  .t-body dt,
+  .field label,
+  fieldset legend,
+  .legend,
+  .stage-foot,
+  .sc-count,
+  .b-count,
+  .hd,
+  .tag,
+  .foot-row,
+  .board-top,
+  .next-slot,
+  .t-tag,
+  .u-row span:last-child,
+  .btn-sm,
+  .board-pct em,
+  .rail-btn,
+  .fact strong,
+  .day span,
+  .grid-head .muted,
+  .price .total span:first-child,
+  .actionbar p,
+  .bk-date span,
+  .t-top h2,
+  .t-top p,
+  .badge,
+  .opt-btn,
+  .opt-group legend,
+  .opt-l,
+  .seg button,
+  .stepsbar li,
+  .stepsbar b,
+  .sum dt,
+  .sum-split span,
+  .methods legend,
+  .m-group>p,
+  .due span,
+  .acct dt,
+  .placeholder b,
+  .field .label,
+  .statusgrid span,
+  .chip b,
+  .sortsel span,
+  .p-cat,
+  .stock,
+  .p-incart,
+  .mc-total span,
+  .cartbar span,
+  .linkbtn,
+  .atab,
+  .atab b,
+  .subseg button,
+  .receipt .r-total span,
+  .cell small,
+  .field label.btn,
+  .acct-card span,
+  .n-tag,
+  .n-new,
+  .n-top time,
+  .demo-accts summary,
+  .demo-accts dt,
+  .fac small,
+  .fac-block h3 small,
+  .court-form label span,
+  .mailbox .mb-tag,
+  .mailbox dt,
+  .cc-tag,
+  .cc-avail,
+  .court-facts dt,
+  .rate-fs legend,
+  .desk-time label,
+  .desk-tag,
+  .desk-next,
+  .dp-time em,
+  .dpr-form label,
+  .bk-steps li,
+  .desk-find h2,
+  .needs h2,
+  .need span{font-size:.7rem}
+}
+
+/* Booking cards on phones: the date tile sits at the top of the card instead of floating mid-way down a tall column. */
+@media (max-width:660px){.bk-date{align-self:start;padding:10px 0}}
+
+/* A shorter landing page on phones. */
+@media (max-width:760px){
+  .showcase{height:calc(var(--n,6) * 50svh + 50svh)}
+  /* The landing shop strip shows two items on phones; the shop has the rest. */
+  .fuel>:nth-child(n+3){display:none}
+  .hero-stats{display:none}
+  .sec{margin-top:64px}
+  .sec-head{margin-bottom:22px}
+  .feat{display:grid;grid-template-columns:44px minmax(0,1fr);gap:4px 14px;padding:16px}
+  .feat-ic{grid-row:span 2}
+  .feat h3{margin:0;align-self:center}
+  .step{padding:18px 18px 20px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 16px;align-items:start}
+  .step-num{font-size:2.4rem;grid-row:span 2}
+  .step h3{margin:2px 0 0}
+}
+
+/* Front desk tables fold into labelled cards on phones (labels come from labelCells in app.js). */
+@media (max-width:640px){
+  .tbl{box-shadow:none;border:0;overflow:visible}
+  .tbl table{min-width:0;border:0}
+  .tbl thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+  .tbl table,.tbl tbody,.tbl tr,.tbl td{display:block;width:100%}
+  .tbl tr{border:var(--bw) solid var(--line);background:var(--panel);box-shadow:var(--hard-sm);padding:6px 14px 12px;margin-bottom:12px}
+  .tbl tbody tr:last-child td:not(:last-child){border-bottom:1px solid var(--hair)}
+  .tbl td{position:relative;padding:7px 0 7px calc(min(32%,120px) + 10px);min-height:34px;border-bottom:1px solid var(--hair);white-space:normal}
+  .tbl td:last-child{border-bottom:0}
+  .tbl td[data-label=""]{padding-left:0;padding-top:12px}
+  .tbl td::before{content:attr(data-label);position:absolute;left:0;top:9px;width:min(32%,120px);font:700 .7rem/1.4 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+  .tbl td[data-label=""]::before{display:none}
+  .tbl td .muted{white-space:normal}
+  .tbl .row-actions{flex-wrap:wrap}
+  /* Cells holding a form use the whole card, with the label above. */
+  .tbl td:has(form){padding-left:0}
+  .tbl td:has(form)::before{position:static;display:block;width:auto;margin-bottom:6px}
+  .tbl .court-form{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:end}
+  .tbl .court-form label:first-of-type{grid-column:1 / -1}
+  .tbl .court-form input,.tbl .court-form select{width:100%}
+  .tbl .court-form .btn,.tbl .court-form .ferr{grid-column:1 / -1}
+  .xs:has(> .tbl)::before,.xs:has(> .tbl)::after{display:none}
+}

@@ -88,6 +88,17 @@ A walk-in is confirmed straight away. The payment is recorded as paid and verifi
 - On phones, the bottom bar shows the deposit. Once signed in with details filled in, its button goes straight to review.
 - A guest who taps Add to cart is asked to sign in, and the item is added once they're in.
 
+## Phones and small screens
+
+- On touch screens, buttons, chips and links are at least 44px, and form fields use 16px text so iPhones don't zoom in.
+- Labels never go below about 11px on phones.
+- Sideways strips (sport chips, the date strip, the landing sports tabs, the front desk tabs and wide tables) show a fade and an arrow when there's more. The chosen item stays in view.
+- Front desk tables become labelled cards at 640px and below.
+- Phones in landscape get the Menu button and drop the ticker.
+- Dialogs taller than the screen scroll inside themselves.
+- On the payment step, a small hold timer stays pinned to the bottom once the banner scrolls away.
+- In light theme, red text uses a darker red so it meets contrast rules.
+
 ## Court ratings
 
 Players can rate a court (1–5 stars, optional comment up to 300 characters) once their booking is completed, and edit it for 7 days. Courts show "★ 4.2 (9)" on the court cards, a Rating fact and the three latest comments; a court shows "New" until it has 3 visible ratings. The front desk can hide a rating (a reason is required and it's logged) or show it again; hidden ratings don't count. Ratings live in the `courtRatings` collection, and older databases get sample ratings on first start.
