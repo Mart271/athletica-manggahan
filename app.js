@@ -228,15 +228,40 @@
       if (bump && n && !reduceMotion()) { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
     });
     const navView = { checkout: 'book', profile: isPlayer() ? 'mine' : 'home', signup: 'login', reset: 'login' }[S.view] || S.view;
-    document.querySelectorAll('#mainnav button').forEach(b => {
-      if (b.dataset.view === navView) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+    const buttons = [...document.querySelectorAll('#mainnav button')];
+    // On the landing page, a section in view (Features, How it works) takes the highlight from Home.
+    const sec = S.view === 'home' && S.homeSection && buttons.some(b => b.dataset.section === S.homeSection) ? S.homeSection : null;
+    buttons.forEach(b => {
+      if (sec ? b.dataset.section === sec : b.dataset.view === navView) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
     });
+  }
+  // The landing-page sections the nav links to; whichever is in view is highlighted in the nav.
+  const SPY = ['features', 'how'];
+  let spyLock = 0;
+  function spySection() {
+    const line = (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--hh')) || 96) + window.innerHeight * 0.25;
+    for (const id of SPY) {
+      const el = document.getElementById(id), r = el && el.getBoundingClientRect();
+      if (r && r.top <= line && r.bottom > line) return id;
+    }
+    return null;
+  }
+  function spyUpdate(force) {
+    if (S.view !== 'home') { S.homeSection = null; return; }
+    // A nav click scrolls smoothly past other sections; hold its highlight until the scroll lands.
+    if (!force && Date.now() < spyLock) return;
+    const id = spySection();
+    if (id === S.homeSection) return;
+    S.homeSection = id;
+    syncChrome(); moveInd();
   }
   function goSection(id) {
     if (S.view !== 'home') { S.pendingSection = id; go('home'); return; }
     closePanels(); setMenu(false);
     const el = document.getElementById(id);
     if (!el) return;
+    S.homeSection = id; spyLock = Date.now() + (reduceMotion() ? 0 : 1100);
+    syncChrome(); moveInd();
     el.scrollIntoView({ behavior: reduceMotion() ? 'auto' : 'smooth', block: 'start' });
     const h = el.querySelector('h2');
     if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); }
@@ -576,7 +601,7 @@
     $('#top').classList.toggle('solid', window.scrollY > 12);
     if (scTick) return;
     scTick = true;
-    requestAnimationFrame(() => { scTick = false; if (S.view === 'home' && V) scUpdate(); });
+    requestAnimationFrame(() => { scTick = false; if (S.view === 'home' && V) { scUpdate(); spyUpdate(); } });
   }, { passive: true });
 
   /* ---------- Micro-interactions ---------- */
@@ -2674,6 +2699,7 @@
         S.pendingSection = null;
         if (el) { el.scrollIntoView({ block: 'start' }); if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); } }
       }
+      spyUpdate(true);
       try {
         if (fromHistory || location.hash === '#' + S.view) history.replaceState(null, '', '#' + S.view);
         else history.pushState(null, '', '#' + S.view);
